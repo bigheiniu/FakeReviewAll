@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 *.pyc
 .idea
 checkpoint
@@ -7,14 +8,23 @@ data/
 # Operating system related file
 .DS_Store
 
+=======
+>>>>>>> 17d46b787be808318ec5b32408e885cc2e24a145
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
+<<<<<<< HEAD
 # Distribution / packaging
 .Python
 env/
+=======
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
 build/
 develop-eggs/
 dist/
@@ -29,6 +39,11 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -48,9 +63,13 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+<<<<<<< HEAD
 *,cover
 .hypothesis/
 
+*.cover
+.hypothesis/
+.pytest_cache/
 # Translations
 *.mo
 *.pot
@@ -58,6 +77,10 @@ coverage.xml
 # Django stuff:
 *.log
 local_settings.py
+
+
+db.sqlite3
+
 
 # Flask stuff:
 instance/
@@ -72,6 +95,7 @@ docs/_build/
 # PyBuilder
 target/
 
+
 # IPython Notebook
 .ipynb_checkpoints
 
@@ -79,3 +103,36 @@ target/
 .vagrant
 
 vocab_pickle
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
