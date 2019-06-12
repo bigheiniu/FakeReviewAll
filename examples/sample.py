@@ -8,7 +8,7 @@ import torchtext
 
 import seq2seq
 from seq2seq.trainer import SupervisedTrainer
-from seq2seq.models import EncoderRNN, DecoderRNN, Seq2seq
+from seq2seq.models import EncoderRNN, DecoderRNN, ItemEncoder,Seq2seq
 from seq2seq.loss import Perplexity
 from seq2seq.optim import Optimizer
 from seq2seq.dataset import SourceField, TargetField
@@ -29,9 +29,9 @@ except NameError:
 #      python examples/sample.py --train_path $TRAIN_PATH --dev_path $DEV_PATH --expt_dir $EXPT_PATH --load_checkpoint $CHECKPOINT_DIR
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--train_path', action='store', dest='train_path',
+parser.add_argument('--train_path', action='store', dest='train_path', default='/home/yichuan/course/seq2/data/toy_reverse/train/data.txt',
                     help='Path to train data')
-parser.add_argument('--dev_path', action='store', dest='dev_path',
+parser.add_argument('--dev_path', action='store', dest='dev_path', default='/home/yichuan/course/seq2/data/toy_reverse/dev/data.txt',
                     help='Path to dev data')
 parser.add_argument('--expt_dir', action='store', dest='expt_dir', default='./experiment',
                     help='Path to experiment directory. If load_checkpoint is True, then path to checkpoint directory has to be provided')
@@ -45,7 +45,7 @@ parser.add_argument('--log-level', dest='log_level',
                     help='Logging level.')
 
 opt = parser.parse_args()
-
+opt.data_path = "/home/yichuan/course/seq2/data/real_data/reviews_Amazon_Instant_Video_5.json"
 LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
 logging.info(opt)
@@ -61,22 +61,38 @@ else:
     # Prepare dataset
     src = SourceField()
     tgt = TargetField()
-    max_len = 50
+    itemId = torchtext.data.Field(sequential=False)
+    rate = torchtext.data.Field(sequential=False, preprocessing=lambda x: str(int(x)))
+    max_len = 100
     def len_filter(example):
-        return len(example.src) <= max_len and len(example.tgt) <= max_len
-    train = torchtext.data.TabularDataset(
-        path=opt.train_path, format='tsv',
-        fields=[('src', src), ('tgt', tgt)],
-        filter_pred=len_filter
+        return len(example.tgt) <= max_len and len(example.tgt) <= max_len
+        # return len(example.src) <= max_len and len(example.tgt) <= max_len
+    # train = torchtext.data.TabularDataset(
+    #     path=opt.train_path, format='tsv',
+    #     fields=[('src', src), ('tgt', tgt)],
+    #     filter_pred=len_filter
+    # )
+    # dev = torchtext.data.TabularDataset(
+    #     path=opt.dev_path, format='tsv',
+    #     fields=[('src', src), ('tgt', tgt)],
+    #     filter_pred=len_filter
+    # )
+
+
+    data = torchtext.data.TabularDataset(
+        path = opt.data_path, format='json',
+        fields={'asin': ('itemId', itemId),
+             'overall': ('rate', rate),
+            'reviewText':('tgt', tgt)},
+        filter_pred = len_filter
     )
-    dev = torchtext.data.TabularDataset(
-        path=opt.dev_path, format='tsv',
-        fields=[('src', src), ('tgt', tgt)],
-        filter_pred=len_filter
-    )
-    src.build_vocab(train, max_size=50000)
+
+    train, dev = data.split()
+    itemId.build_vocab(data.itemId, data.rate)
+    rate.build_vocab(data.itemId, data.rate)
     tgt.build_vocab(train, max_size=50000)
-    input_vocab = src.vocab
+    input_vocab = itemId.vocab
+    input_rate_vocab = input_vocab
     output_vocab = tgt.vocab
 
     # NOTE: If the source field name and the target field name
@@ -97,18 +113,20 @@ else:
     if not opt.resume:
         # Initialize model
         hidden_size=128
-        bidirectional = True
-        encoder = EncoderRNN(len(src.vocab), max_len, hidden_size,
-                             bidirectional=bidirectional, variable_lengths=True)
+        bidirectional = False
+        item_encoder = ItemEncoder(len(input_vocab), hidden_size=hidden_size)
+        # encoder = EncoderRNN(len(src.vocab), max_len, hidden_size,
+        #                      bidirectional=bidirectional, variable_lengths=True)
         decoder = DecoderRNN(len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
-                             dropout_p=0.2, use_attention=True, bidirectional=bidirectional,
+                             dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
                              eos_id=tgt.eos_id, sos_id=tgt.sos_id)
-        seq2seq = Seq2seq(encoder, decoder)
+        seq2seq = Seq2seq(item_encoder, decoder)
         if torch.cuda.is_available():
             seq2seq.cuda()
 
         for param in seq2seq.parameters():
-            param.data.uniform_(-0.08, 0.08)
+            if param.requires_grad:
+                param.data.uniform_(-0.08, 0.08)
 
         # Optimizer and learning rate scheduler can be customized by
         # explicitly constructing the objects and pass to the trainer.

@@ -68,41 +68,62 @@ class DecoderRNN(BaseRNN):
     def __init__(self, vocab_size, max_len, hidden_size,
             sos_id, eos_id,
             n_layers=1, rnn_cell='gru', bidirectional=False,
-            input_dropout_p=0, dropout_p=0, use_attention=False):
+            input_dropout_p=0, dropout_p=0, use_attention=False, use_gC2S=False, embedding=None, update_embedding=True):
+
         super(DecoderRNN, self).__init__(vocab_size, max_len, hidden_size,
                 input_dropout_p, dropout_p,
                 n_layers, rnn_cell)
 
         self.bidirectional_encoder = bidirectional
         self.rnn = self.rnn_cell(hidden_size, hidden_size, n_layers, batch_first=True, dropout=dropout_p)
-
+        #all the vovabary
         self.output_size = vocab_size
         self.max_length = max_len
         self.use_attention = use_attention
         self.eos_id = eos_id
         self.sos_id = sos_id
-
+        self.use_gC2S = use_gC2S
         self.init_input = None
 
-        self.embedding = nn.Embedding(self.output_size, self.hidden_size)
+        self.embedding = nn.Embedding(vocab_size, hidden_size)
+        if embedding is not None:
+            self.embedding.weight = nn.Parameter(embedding)
+        self.embedding.weight.requires_grad = update_embedding
         if use_attention:
             self.attention = Attention(self.hidden_size)
 
+        self.gate = nn.Linear(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
-    def forward_step(self, input_var, hidden, encoder_outputs, function):
+    def forward_step(self, input_var, hidden, encoder_hidden, encoder_outputs, function):
         batch_size = input_var.size(0)
         output_size = input_var.size(1)
         embedded = self.embedding(input_var)
         embedded = self.input_dropout(embedded)
 
+        #batch, seq_len, num_directions * hidden_size)
+
         output, hidden = self.rnn(embedded, hidden)
+
+
+        batch_size = output.shape[0]
+        hidden_size = output.shape[-1]
+        if len(encoder_hidden.shape) == 2:
+            encoder_hidden = encoder_hidden.unsqueeze(1)
+        if encoder_hidden.shape[0] != output.shape[0]:
+            encoder_hidden_ = encoder_hidden.transpose(1, 0)
+        else: encoder_hidden_ = encoder_hidden
+        encoder_hidden_ = encoder_hidden_.contiguous().view(batch_size, 1, hidden_size)
+
+        if self.use_gC2S:
+            output = self._gate_hidden(output, encoder_hidden_)
 
         attn = None
         if self.use_attention:
             output, attn = self.attention(output, encoder_outputs)
 
-        predicted_softmax = function(self.out(output.contiguous().view(-1, self.hidden_size)), dim=1).view(batch_size, output_size, -1)
+        predicted_softmax = function(torch.matmul(output, self.embedding.weight.transpose(1,0)), dim=-1)
+        # predicted_softmax = function(self.out(output.contiguous().view(-1, self.hidden_size)), dim=1).view(batch_size, output_size, -1)
         return predicted_softmax, hidden, attn
 
     def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None,
@@ -139,7 +160,7 @@ class DecoderRNN(BaseRNN):
         # If teacher_forcing_ratio is True or False instead of a probability, the unrolling can be done in graph
         if use_teacher_forcing:
             decoder_input = inputs[:, :-1]
-            decoder_output, decoder_hidden, attn = self.forward_step(decoder_input, decoder_hidden, encoder_outputs,
+            decoder_output, decoder_hidden, attn = self.forward_step(decoder_input, decoder_hidden, encoder_hidden, encoder_outputs,
                                                                      function=function)
 
             for di in range(decoder_output.size(1)):
@@ -152,7 +173,7 @@ class DecoderRNN(BaseRNN):
         else:
             decoder_input = inputs[:, 0].unsqueeze(1)
             for di in range(max_length):
-                decoder_output, decoder_hidden, step_attn = self.forward_step(decoder_input, decoder_hidden, encoder_outputs,
+                decoder_output, decoder_hidden, step_attn = self.forward_step(decoder_input, decoder_hidden, encoder_hidden, encoder_outputs,
                                                                          function=function)
                 step_output = decoder_output.squeeze(1)
                 symbols = decode(di, step_output, step_attn)
@@ -162,6 +183,12 @@ class DecoderRNN(BaseRNN):
         ret_dict[DecoderRNN.KEY_LENGTH] = lengths.tolist()
 
         return decoder_outputs, decoder_hidden, ret_dict
+
+    def _gate_hidden(self, decoder_hidden, encoder_hidden):
+
+        m_t = torch.sigmoid(self.gate(decoder_hidden))
+
+        return decoder_hidden + encoder_hidden * m_t
 
     def _init_state(self, encoder_hidden):
         """ Initialize the encoder hidden state. """

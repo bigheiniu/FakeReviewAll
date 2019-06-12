@@ -14,6 +14,12 @@ from seq2seq.loss import NLLLoss
 from seq2seq.optim import Optimizer
 from seq2seq.util.checkpoint import Checkpoint
 
+if torch.cuda.is_available():
+    import torch as device
+else:
+    import torch.cuda as device
+
+
 class SupervisedTrainer(object):
     """ The SupervisedTrainer class helps in setting up a training framework in a
     supervised setting.
@@ -48,10 +54,10 @@ class SupervisedTrainer(object):
 
         self.logger = logging.getLogger(__name__)
 
-    def _train_batch(self, input_variable, input_lengths, target_variable, model, teacher_forcing_ratio):
+    def _train_batch(self, input_itemId, input_rate, target_variable, model, teacher_forcing_ratio):
         loss = self.loss
         # Forward propagation
-        decoder_outputs, decoder_hidden, other = model(input_variable, input_lengths, target_variable,
+        decoder_outputs, decoder_hidden, other = model(input_itemId, input_rate, target_variable,
                                                        teacher_forcing_ratio=teacher_forcing_ratio)
         # Get loss
         loss.reset()
@@ -72,11 +78,11 @@ class SupervisedTrainer(object):
         print_loss_total = 0  # Reset every print_every
         epoch_loss_total = 0  # Reset every epoch
 
-        device = None if torch.cuda.is_available() else -1
+        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         batch_iterator = torchtext.data.BucketIterator(
             dataset=data, batch_size=self.batch_size,
             sort=False, sort_within_batch=True,
-            sort_key=lambda x: len(x.src),
+            sort_key=lambda x: len(x.tgt),
             device=device, repeat=False)
 
         steps_per_epoch = len(batch_iterator)
@@ -97,10 +103,14 @@ class SupervisedTrainer(object):
                 step += 1
                 step_elapsed += 1
 
-                input_variables, input_lengths = getattr(batch, seq2seq.src_field_name)
+                input_itemId = getattr(batch, seq2seq.src_field_itemId)
+                input_rate = getattr(batch, seq2seq.src_field_rate)
                 target_variables = getattr(batch, seq2seq.tgt_field_name)
+                input_itemId.to(device)
+                input_rate.to(device)
+                target_variables.to(device)
 
-                loss = self._train_batch(input_variables, input_lengths.tolist(), target_variables, model, teacher_forcing_ratio)
+                loss = self._train_batch(input_itemId, input_rate, target_variables, model, teacher_forcing_ratio)
 
                 # Record average loss
                 print_loss_total += loss
@@ -120,7 +130,7 @@ class SupervisedTrainer(object):
                     Checkpoint(model=model,
                                optimizer=self.optimizer,
                                epoch=epoch, step=step,
-                               input_vocab=data.fields[seq2seq.src_field_name].vocab,
+                               input_vocab=data.fields[seq2seq.src_field_itemId].vocab,
                                output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir)
 
             if step_elapsed == 0: continue
@@ -176,7 +186,7 @@ class SupervisedTrainer(object):
             start_epoch = 1
             step = 0
             if optimizer is None:
-                optimizer = Optimizer(optim.Adam(model.parameters()), max_grad_norm=5)
+                optimizer = Optimizer(optim.Adam(filter(lambda p: p.requires_grad, model.parameters())), max_grad_norm=5)
             self.optimizer = optimizer
 
         self.logger.info("Optimizer: %s, Scheduler: %s" % (self.optimizer.optimizer, self.optimizer.scheduler))

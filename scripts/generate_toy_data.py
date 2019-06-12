@@ -4,6 +4,7 @@ import os
 import shutil
 import random
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--dir', help="data directory", default="../data")
 parser.add_argument('--max-len', help="max sequence length", default=10)
@@ -18,10 +19,12 @@ def generate_dataset(root, name, size):
     data_path = os.path.join(path, 'data.txt')
     with open(data_path, 'w') as fout:
         for _ in range(size):
-            length = random.randint(1, args.max_len)
+            length = random.randint(2, args.max_len)
             seq = []
             for _ in range(length):
                 seq.append(str(random.randint(0, 9)))
+                if int(max(seq)) > 10:
+                    print("fucl {}".format(max(seq)))
             fout.write("\t".join([" ".join(seq), " ".join(reversed(seq))]))
             fout.write('\n')
 

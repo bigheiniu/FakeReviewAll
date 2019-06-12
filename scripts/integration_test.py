@@ -7,7 +7,7 @@ import torchtext
 
 import seq2seq
 from seq2seq.trainer import SupervisedTrainer
-from seq2seq.models import EncoderRNN, DecoderRNN, TopKDecoder, Seq2seq
+from seq2seq.models import EncoderRNN, DecoderRNN, TopKDecoder, ItemEncoder, Seq2seq
 from seq2seq.loss import Perplexity
 from seq2seq.dataset import SourceField, TargetField
 from seq2seq.evaluator import Predictor, Evaluator
@@ -76,17 +76,18 @@ else:
     if not opt.resume:
         # Initialize model
         hidden_size=128
-        bidirectional = True
+        bidirectional = False
+        item_encoder = ItemEncoder(rating_count = 10, item_count=10, hidden_size=hidden_size)
         encoder = EncoderRNN(len(src.vocab), max_len, hidden_size,
                              bidirectional=bidirectional,
                              rnn_cell='lstm',
                              variable_lengths=True)
         decoder = DecoderRNN(len(tgt.vocab), max_len, hidden_size * 2,
-                             dropout_p=0.2, use_attention=True,
+                             dropout_p=0.2, use_attention=False,
                              bidirectional=bidirectional,
                              rnn_cell='lstm',
                              eos_id=tgt.eos_id, sos_id=tgt.sos_id)
-        seq2seq = Seq2seq(encoder, decoder)
+        seq2seq = Seq2seq(item_encoder, decoder)
         if torch.cuda.is_available():
             seq2seq.cuda()
 
