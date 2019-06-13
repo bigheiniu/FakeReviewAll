@@ -15,5 +15,4 @@ class ItemEncoder(nn.Module):
         context = torch.cat((rate_embed, item_embed), 1)
         hidden = torch.tanh(self.linear(context))
         output = None
-        hidden.unsqueeze_(0)
         return output, hidden

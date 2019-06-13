@@ -8,8 +8,8 @@ import torchtext
 
 import seq2seq
 from seq2seq.trainer import SupervisedTrainer
-from seq2seq.models import EncoderRNN, DecoderRNN, ItemEncoder,Seq2seq
-from seq2seq.loss import Perplexity
+from seq2seq.models import EncoderRNN, DecoderRNN, ItemEncoder, NeuralEditorDecoder, NeuralEditorEncoder,Seq2seq
+from seq2seq.loss import VAELoss, PerplexityVAE
 from seq2seq.optim import Optimizer
 from seq2seq.dataset import SourceField, TargetField
 from seq2seq.evaluator import Predictor
@@ -19,7 +19,7 @@ try:
     raw_input          # Python 2
 except NameError:
     raw_input = input  # Python 3
-
+torch.autograd.set_detect_anomaly(True)
 # Sample usage:
 #     # training
 #     python examples/sample.py --train_path $TRAIN_PATH --dev_path $DEV_PATH --expt_dir $EXPT_PATH
@@ -104,9 +104,10 @@ else:
     # Prepare loss
     weight = torch.ones(len(tgt.vocab))
     pad = tgt.vocab.stoi[tgt.pad_token]
-    loss = Perplexity(weight, pad)
+    loss = PerplexityVAE(weight, pad)
     if torch.cuda.is_available():
         loss.cuda()
+
 
     seq2seq = None
     optimizer = None
@@ -114,13 +115,18 @@ else:
         # Initialize model
         hidden_size=128
         bidirectional = False
-        item_encoder = ItemEncoder(len(input_vocab), hidden_size=hidden_size)
-        # encoder = EncoderRNN(len(src.vocab), max_len, hidden_size,
-        #                      bidirectional=bidirectional, variable_lengths=True)
-        decoder = DecoderRNN(len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
-                             dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
-                             eos_id=tgt.eos_id, sos_id=tgt.sos_id)
-        seq2seq = Seq2seq(item_encoder, decoder)
+        latent_size = 128
+        # # item_encoder = ItemEncoder(len(input_vocab), hidden_size=hidden_size)
+        # # encoder = EncoderRNN(len(src.vocab), max_len, hidden_size,
+        # #                      bidirectional=bidirectional, variable_lengths=True)
+        # #
+        # # decoder = DecoderRNN(len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
+        # #                      dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
+        # #                      eos_id=tgt.eos_id, sos_id=tgt.sos_id)
+
+        encoder = NeuralEditorEncoder(len(output_vocab), max_len, hidden_size, latent_size=latent_size, context_size=len(input_vocab), dropout_p=0.2)
+        decoder = NeuralEditorDecoder(len(output_vocab), max_len, hidden_size,  dropout_p=0.2,  eos_id=tgt.eos_id, sos_id=tgt.sos_id)
+        seq2seq = Seq2seq(encoder, decoder)
         if torch.cuda.is_available():
             seq2seq.cuda()
 

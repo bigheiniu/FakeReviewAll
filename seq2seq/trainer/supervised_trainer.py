@@ -10,7 +10,7 @@ from torch import optim
 
 import seq2seq
 from seq2seq.evaluator import Evaluator
-from seq2seq.loss import NLLLoss
+from seq2seq.loss import VAELoss
 from seq2seq.optim import Optimizer
 from seq2seq.util.checkpoint import Checkpoint
 
@@ -31,7 +31,7 @@ class SupervisedTrainer(object):
         batch_size (int, optional): batch size for experiment, (default: 64)
         checkpoint_every (int, optional): number of batches to checkpoint after, (default: 100)
     """
-    def __init__(self, expt_dir='experiment', loss=NLLLoss(), batch_size=64,
+    def __init__(self, expt_dir='experiment', loss=VAELoss(), batch_size=64,
                  random_seed=None,
                  checkpoint_every=100, print_every=100):
         self._trainer = "Simple Trainer"
@@ -54,16 +54,19 @@ class SupervisedTrainer(object):
 
         self.logger = logging.getLogger(__name__)
 
-    def _train_batch(self, input_itemId, input_rate, target_variable, model, teacher_forcing_ratio):
+    def _train_batch(self, input_itemId, input_rate, target_variable, model, teacher_forcing_ratio, n_epoch):
         loss = self.loss
         # Forward propagation
-        decoder_outputs, decoder_hidden, other = model(input_itemId, input_rate, target_variable,
+        decoder_outputs, z_dis, _ = model(input_itemId, input_rate, target_variable,
                                                        teacher_forcing_ratio=teacher_forcing_ratio)
+
         # Get loss
         loss.reset()
         for step, step_output in enumerate(decoder_outputs):
             batch_size = target_variable.size(0)
             loss.eval_batch(step_output.contiguous().view(batch_size, -1), target_variable[:, step + 1])
+        # VAE loss
+        loss.kl_loss(logv=z_dis['var'], mean=z_dis['mean'], step=n_epoch)
         # Backward propagation
         model.zero_grad()
         loss.backward()
@@ -102,6 +105,7 @@ class SupervisedTrainer(object):
             for batch in batch_generator:
                 step += 1
                 step_elapsed += 1
+                break
 
                 input_itemId = getattr(batch, seq2seq.src_field_itemId)
                 input_rate = getattr(batch, seq2seq.src_field_rate)
@@ -110,7 +114,7 @@ class SupervisedTrainer(object):
                 input_rate.to(device)
                 target_variables.to(device)
 
-                loss = self._train_batch(input_itemId, input_rate, target_variables, model, teacher_forcing_ratio)
+                loss = self._train_batch(input_itemId, input_rate, target_variables, model, teacher_forcing_ratio, epoch)
 
                 # Record average loss
                 print_loss_total += loss
@@ -132,7 +136,7 @@ class SupervisedTrainer(object):
                                epoch=epoch, step=step,
                                input_vocab=data.fields[seq2seq.src_field_itemId].vocab,
                                output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir)
-
+            step_elapsed = 1
             if step_elapsed == 0: continue
 
             epoch_loss_avg = epoch_loss_total / min(steps_per_epoch, step - start_step)

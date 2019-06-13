@@ -2,6 +2,7 @@ from __future__ import print_function
 import math
 import torch.nn as nn
 import numpy as np
+import torch
 
 class Loss(object):
     """ Base class for encapsulation of the loss functions.
@@ -117,6 +118,67 @@ class NLLLoss(Loss):
         self.acc_loss += self.criterion(outputs, target)
         self.norm_term += 1
 
+
+
+
+class VAELoss(Loss):
+    _NAME="VAELoss"
+
+
+    def __init__(self, weight=None, mask=None, size_average=True, k=0.0025, x0=2500, anneal_function='logistic'):
+        self.mask = mask
+        self.size_average = size_average
+        self.anneal_function = anneal_function.lower()
+        self.k = k
+        self.x0 = x0
+        if mask is not None:
+            if weight is None:
+                raise ValueError("Must provide weight with a mask.")
+            weight[mask] = 0
+        self.NLL_loss = NLLLoss(weight, mask, size_average)
+
+        super(VAELoss, self).__init__(
+            self._NAME,
+            nn.NLLLoss(weight=weight, size_average=size_average))
+
+    def get_loss(self):
+        if isinstance(self.acc_loss, int):
+            return 0
+        # total reconstruct_loss for all batches
+        reconstruct_loss = self.acc_loss.data.item()
+
+        if self.size_average:
+            # average reconstruct_loss per batch
+            reconstruct_loss /= self.norm_term
+        return reconstruct_loss
+
+
+    def eval_batch(self, outputs, target):
+        self.acc_loss += self.criterion(outputs, target)
+        self.norm_term += 1
+
+
+    def kl_anneal_function(self, anneal_function, step, k, x0):
+        if anneal_function == 'logistic':
+            return float(1 / (1 + np.exp(-k * (step - x0))))
+        elif anneal_function == 'linear':
+            return min(1, step / x0)
+
+    def kl_loss(self, logv, mean, step):
+        KL_loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
+        KL_weight = self.kl_anneal_function(self.anneal_function, step, self.k, self.x0)
+        self.KL_loss = KL_loss * KL_weight
+        # assert  1+ 1 == 2
+
+    def backward(self):
+        # self.KL_loss = 0
+        if type(self.acc_loss) is int:
+            raise ValueError("No loss to back propagate.")
+        self.loss = self.acc_loss + self.KL_loss
+        self.loss.backward()
+
+
+
 class Perplexity(NLLLoss):
     """ Language model perplexity loss.
 
@@ -148,3 +210,51 @@ class Perplexity(NLLLoss):
             print("WARNING: Loss exceeded maximum value, capping to e^100")
             return math.exp(Perplexity._MAX_EXP)
         return math.exp(nll)
+
+class PerplexityVAE(NLLLoss):
+    _NAME = "VAE_Perplexity"
+    _MAX_EXP = 100
+
+    def __init__(self, weight=None, mask=None, size_average=True, k=0.0025, x0=2500, anneal_function='logistic'):
+        self.mask = mask
+        self.size_average = size_average
+        self.anneal_function = anneal_function.lower()
+        self.k = k
+        self.x0 = x0
+        super(PerplexityVAE, self).__init__(weight=weight, mask=mask, size_average=False)
+
+
+
+    def get_loss(self):
+        nll = super(PerplexityVAE, self).get_loss()
+        nll /= self.norm_term.item()
+        if nll > Perplexity._MAX_EXP:
+            print("WARNING: Loss exceeded maximum value, capping to e^100")
+            return math.exp(Perplexity._MAX_EXP)
+        return math.exp(nll)
+
+    def kl_anneal_function(self, anneal_function, step, k, x0):
+        if anneal_function == 'logistic':
+            return float(1 / (1 + np.exp(-k * (step - x0))))
+        elif anneal_function == 'linear':
+            return min(1, step / x0)
+
+    def kl_loss(self, logv, mean, step):
+        KL_loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
+        KL_weight = self.kl_anneal_function(self.anneal_function, step, self.k, self.x0)
+        self.KL_loss = KL_loss * KL_weight
+        # assert  1+ 1 == 2
+
+    def eval_batch(self, outputs, target):
+        self.acc_loss += self.criterion(outputs, target)
+        if self.mask is None:
+            self.norm_term += np.prod(target.size())
+        else:
+            self.norm_term += target.data.ne(self.mask).sum()
+
+    def backward(self):
+        # self.KL_loss = 0
+        if type(self.acc_loss) is int:
+            raise ValueError("No loss to back propagate.")
+        self.loss = self.acc_loss + self.KL_loss
+        self.loss.backward()
