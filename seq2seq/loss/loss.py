@@ -258,3 +258,9 @@ class PerplexityVAE(NLLLoss):
             raise ValueError("No loss to back propagate.")
         self.loss = self.acc_loss + self.KL_loss
         self.loss.backward()
+
+
+from nltk.translate.bleu_score import corpus_bleu
+
+def cal_bleu_score(reference_list, hypotheses):
+    return corpus_bleu(reference_list, hypotheses)

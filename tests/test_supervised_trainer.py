@@ -5,7 +5,7 @@ import mock
 import torchtext
 
 from seq2seq.dataset import SourceField, TargetField
-from seq2seq.trainer import SupervisedTrainer
+from seq2seq.trainer import VAESupervisedTrainer
 
 class TestSupervisedTrainer(unittest.TestCase):
 
@@ -26,7 +26,7 @@ class TestSupervisedTrainer(unittest.TestCase):
         mock_model = mock.Mock()
         mock_optim = mock.Mock()
 
-        trainer = SupervisedTrainer(batch_size=16)
+        trainer = VAESupervisedTrainer(batch_size=16)
         trainer.optimizer = mock_optim
         n_epoches = 1
         start_epoch = 1
@@ -42,7 +42,7 @@ class TestSupervisedTrainer(unittest.TestCase):
         mock_model = mock.Mock()
         mock_optim = mock.Mock()
 
-        trainer = SupervisedTrainer(batch_size=16)
+        trainer = VAESupervisedTrainer(batch_size=16)
         trainer.optimizer = mock_optim
         n_epoches = 1
         start_epoch = 1

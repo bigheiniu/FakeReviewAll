@@ -5,6 +5,7 @@ import torchtext
 
 import seq2seq
 from seq2seq.loss import NLLLoss
+from seq2seq.loss import cal_bleu_score
 
 class Evaluator(object):
     """ Class to evaluate models with given datasets.
@@ -42,18 +43,20 @@ class Evaluator(object):
             device=device, train=False)
         tgt_vocab = data.fields[seq2seq.tgt_field_name].vocab
         pad = tgt_vocab.stoi[data.fields[seq2seq.tgt_field_name].pad_token]
-
+        pred_list = []
+        gold_list = []
         with torch.no_grad():
             for batch in batch_iterator:
-                input_variables, input_lengths  = getattr(batch, seq2seq.src_field_name)
+                input_variables, input_lengths = getattr(batch, seq2seq.src_field_name)
                 target_variables = getattr(batch, seq2seq.tgt_field_name)
                 input_lengths.to(device)
                 input_variables.to(device)
                 target_variables.to(device)
                 decoder_outputs, decoder_hidden, other = model(input_variables, input_lengths.tolist(), target_variables)
-
                 # Evaluation
                 seqlist = other['sequence']
+                pred_list.append(torch.stack(seqlist, dim=1).cpu().numpy().tolist())
+                gold_list.append(target_variables.cpu().numpy().tolist())
                 for step, step_output in enumerate(decoder_outputs):
                     target = target_variables[:, step + 1]
                     loss.eval_batch(step_output.view(target_variables.size(0), -1), target)
@@ -62,10 +65,10 @@ class Evaluator(object):
                     correct = seqlist[step].view(-1).eq(target).masked_select(non_padding).sum().item()
                     match += correct
                     total += non_padding.sum().item()
-
+        bleu_score = cal_bleu_score(pred_list, gold_list)
         if total == 0:
             accuracy = float('nan')
         else:
             accuracy = match / total
 
-        return loss.get_loss(), accuracy
+        return loss.get_loss(), accuracy, bleu_score

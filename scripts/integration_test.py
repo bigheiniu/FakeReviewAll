@@ -6,7 +6,7 @@ import torch
 import torchtext
 
 import seq2seq
-from seq2seq.trainer import SupervisedTrainer
+from seq2seq.trainer import VAESupervisedTrainer
 from seq2seq.models import EncoderRNN, DecoderRNN, TopKDecoder, ItemEncoder, Seq2seq
 from seq2seq.loss import Perplexity
 from seq2seq.dataset import SourceField, TargetField
@@ -95,9 +95,9 @@ else:
             param.data.uniform_(-0.08, 0.08)
 
     # train
-    t = SupervisedTrainer(loss=loss, batch_size=32,
-                          checkpoint_every=50,
-                          print_every=10, expt_dir=opt.expt_dir)
+    t = VAESupervisedTrainer(loss=loss, batch_size=32,
+                             checkpoint_every=50,
+                             print_every=10, expt_dir=opt.expt_dir)
 
     seq2seq = t.train(seq2seq, train,
                       num_epochs=6, dev_data=dev,

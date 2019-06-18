@@ -7,7 +7,7 @@ from torch.optim.lr_scheduler import StepLR
 import torchtext
 
 import seq2seq
-from seq2seq.trainer import SupervisedTrainer
+from seq2seq.trainer import VAESupervisedTrainer
 from seq2seq.models import EncoderRNN, DecoderRNN, Seq2seq
 from seq2seq.loss import Perplexity
 from seq2seq.optim import Optimizer
@@ -118,9 +118,9 @@ else:
         # optimizer.set_scheduler(scheduler)
 
     # train
-    t = SupervisedTrainer(loss=loss, batch_size=32,
-                          checkpoint_every=50,
-                          print_every=10, expt_dir=opt.expt_dir)
+    t = VAESupervisedTrainer(loss=loss, batch_size=32,
+                             checkpoint_every=50,
+                             print_every=10, expt_dir=opt.expt_dir)
 
     seq2seq = t.train(seq2seq, train,
                       num_epochs=6, dev_data=dev,

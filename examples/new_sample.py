@@ -9,7 +9,7 @@ import torchtext
 import seq2seq
 from seq2seq.trainer import SupervisedTrainer
 from seq2seq.models import EncoderRNN, DecoderRNN, ItemEncoder, NeuralEditorDecoder, NeuralEditorEncoder,Seq2seq
-from seq2seq.loss import VAELoss, PerplexityVAE
+from seq2seq.loss import VAELoss, Perplexity
 from seq2seq.optim import Optimizer
 from seq2seq.dataset import SourceField, TargetField
 from seq2seq.evaluator import Predictor
@@ -45,7 +45,7 @@ parser.add_argument('--log-level', dest='log_level',
                     help='Logging level.')
 
 opt = parser.parse_args()
-opt.data_path = "/home/yichuan/course/seq2/data/real_data/reviews_Amazon_Instant_Video_5.json"
+opt.data_path = "../data/smalldata.txt"
 LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
 logging.info(opt)
@@ -59,13 +59,16 @@ if opt.load_checkpoint is not None:
     output_vocab = checkpoint.output_vocab
 else:
     # Prepare dataset
-    src = SourceField()
+    # src = SourceField()
     tgt = TargetField()
-    itemId = torchtext.data.Field(sequential=False)
-    rate = torchtext.data.Field(sequential=False, preprocessing=lambda x: str(int(x)))
+    itemField = torchtext.data.Field(sequential=False, preprocessing=lambda x: str(int(x))+'_i')
+    rateField = torchtext.data.Field(sequential=False, preprocessing=lambda x: x +'_r')
+    userField = torchtext.data.Field(sequential=False, preprocessing=lambda x: str(int(x))+'_u')
+
+
     max_len = 100
     def len_filter(example):
-        return len(example.tgt) <= max_len and len(example.tgt) <= max_len
+        return len(example.tgt) <= max_len
         # return len(example.src) <= max_len and len(example.tgt) <= max_len
     # train = torchtext.data.TabularDataset(
     #     path=opt.train_path, format='tsv',
@@ -78,21 +81,30 @@ else:
     #     filter_pred=len_filter
     # )
 
+    #
+    # data = torchtext.data.TabularDataset(
+    #     path = opt.data_path, format='json',
+    #     fields={'asin': ('itemId', itemId),
+    #          'overall': ('rate', rate),
+    #         '':
+    #         'reviewText':('tgt', tgt)},
+    #     filter_pred = len_filter
+    # )
 
     data = torchtext.data.TabularDataset(
-        path = opt.data_path, format='json',
-        fields={'asin': ('itemId', itemId),
-             'overall': ('rate', rate),
-            'reviewText':('tgt', tgt)},
-        filter_pred = len_filter
+        path=opt.data_path, format='tsv',
+        fields=[('userId', userField), ('itemId', itemField), ('rate', rateField), ('tgt', tgt)],
+        filter_pred=len_filter
     )
 
     train, dev = data.split()
-    itemId.build_vocab(data.itemId, data.rate)
-    rate.build_vocab(data.itemId, data.rate)
+    itemField.build_vocab(data.userId, data.rate, data.itemId)
+    rateField.build_vocab(data.userId, data.rate, data.itemId)
+    userField.build_vocab(data.userId, data.rate, data.itemId)
+    # rate.build_vocab(data.itemId, data.rate)
     tgt.build_vocab(train, max_size=50000)
-    input_vocab = itemId.vocab
-    input_rate_vocab = input_vocab
+    input_vocab = itemField.vocab
+
     output_vocab = tgt.vocab
 
     # NOTE: If the source field name and the target field name
@@ -104,7 +116,7 @@ else:
     # Prepare loss
     weight = torch.ones(len(tgt.vocab))
     pad = tgt.vocab.stoi[tgt.pad_token]
-    loss = PerplexityVAE(weight, pad)
+    loss = Perplexity(weight, pad)
     if torch.cuda.is_available():
         loss.cuda()
 
@@ -116,17 +128,13 @@ else:
         hidden_size=128
         bidirectional = False
         latent_size = 128
-        # # item_encoder = ItemEncoder(len(input_vocab), hidden_size=hidden_size)
-        # # encoder = EncoderRNN(len(src.vocab), max_len, hidden_size,
-        # #                      bidirectional=bidirectional, variable_lengths=True)
-        # #
-        # # decoder = DecoderRNN(len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
-        # #                      dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
-        # #                      eos_id=tgt.eos_id, sos_id=tgt.sos_id)
+        item_encoder = ItemEncoder(len(input_vocab), hidden_size=hidden_size)
 
-        encoder = NeuralEditorEncoder(len(output_vocab), max_len, hidden_size, latent_size=latent_size, context_size=len(input_vocab), dropout_p=0.2)
-        decoder = NeuralEditorDecoder(len(output_vocab), max_len, hidden_size,  dropout_p=0.2,  eos_id=tgt.eos_id, sos_id=tgt.sos_id)
-        seq2seq = Seq2seq(encoder, decoder)
+        decoder = DecoderRNN(len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
+                             dropout_p=0.2, use_attention=True, bidirectional=bidirectional,
+                             eos_id=tgt.eos_id, sos_id=tgt.sos_id)
+
+        seq2seq = Seq2seq(item_encoder, decoder)
         if torch.cuda.is_available():
             seq2seq.cuda()
 
@@ -143,8 +151,8 @@ else:
 
     # train
     t = SupervisedTrainer(loss=loss, batch_size=32,
-                          checkpoint_every=50,
-                          print_every=10, expt_dir=opt.expt_dir)
+                             checkpoint_every=50,
+                             print_every=10, expt_dir=opt.expt_dir)
 
     seq2seq = t.train(seq2seq, train,
                       num_epochs=6, dev_data=dev,

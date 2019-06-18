@@ -95,6 +95,7 @@ class DecoderRNN(BaseRNN):
         self.gate = nn.Linear(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
+
     def forward_step(self, input_var, hidden, encoder_hidden, encoder_outputs, function):
         batch_size = input_var.size(0)
         output_size = input_var.size(1)
@@ -106,24 +107,27 @@ class DecoderRNN(BaseRNN):
         output, hidden = self.rnn(embedded, hidden)
 
 
-        batch_size = output.shape[0]
-        hidden_size = output.shape[-1]
-        if len(encoder_hidden.shape) == 2:
-            encoder_hidden = encoder_hidden.unsqueeze(1)
-        if encoder_hidden.shape[0] != output.shape[0]:
-            encoder_hidden_ = encoder_hidden.transpose(1, 0)
-        else: encoder_hidden_ = encoder_hidden
-        encoder_hidden_ = encoder_hidden_.contiguous().view(batch_size, 1, hidden_size)
+        # batch_size = output.shape[0]
+
 
         if self.use_gC2S:
+            hidden_size = output.shape[-1]
+            if len(encoder_hidden.shape) == 2:
+                encoder_hidden = encoder_hidden.unsqueeze(1)
+            if encoder_hidden.shape[0] != output.shape[0]:
+                encoder_hidden_ = encoder_hidden.transpose(1, 0)
+            else:
+                encoder_hidden_ = encoder_hidden
+            encoder_hidden_ = encoder_hidden_.contiguous().view(batch_size, 1, hidden_size)
             output = self._gate_hidden(output, encoder_hidden_)
+            predicted_softmax = function(torch.matmul(output, self.embedding.weight.transpose(1, 0)), dim=-1)
+            return predicted_softmax
 
         attn = None
         if self.use_attention:
             output, attn = self.attention(output, encoder_outputs)
 
-        predicted_softmax = function(torch.matmul(output, self.embedding.weight.transpose(1,0)), dim=-1)
-        # predicted_softmax = function(self.out(output.contiguous().view(-1, self.hidden_size)), dim=1).view(batch_size, output_size, -1)
+        predicted_softmax = function(self.out(output.contiguous().view(-1, self.hidden_size)), dim=1).view(batch_size, output_size, -1)
         return predicted_softmax, hidden, attn
 
     def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None,
