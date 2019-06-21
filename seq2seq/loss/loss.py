@@ -263,4 +263,18 @@ class PerplexityVAE(NLLLoss):
 from nltk.translate.bleu_score import corpus_bleu
 
 def cal_bleu_score(reference_list, hypotheses):
-    return corpus_bleu(reference_list, hypotheses)
+    re_list = []
+    for i in reference_list:
+        for j in i:
+            t1 = []
+            for k in j:
+                t1.append(k[0])
+            re_list.append([t1])
+
+
+    hy_list = []
+    for i in hypotheses:
+        for j in i:
+            hy_list.append(j)
+
+    return corpus_bleu(re_list, hy_list)

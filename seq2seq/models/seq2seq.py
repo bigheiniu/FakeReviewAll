@@ -39,7 +39,6 @@ class Seq2seq(nn.Module):
         self.encoder = encoder
         self.decoder = decoder
         self.decode_function = decode_function
-
     def flatten_parameters(self):
         self.encoder.rnn.flatten_parameters()
         self.decoder.rnn.flatten_parameters()
@@ -51,10 +50,11 @@ class Seq2seq(nn.Module):
         input_user_id = input_variable[0]
         input_item_id = input_variable[1]
         input_user_rate = input_variable[2]
-        encoder_outputs, encoder_hidden = self.encoder(input_user_id, input_item_id, input_user_rate)
+        encoder_outputs, encoder_hidden, rate_prediction = self.encoder(input_user_id, input_item_id, input_user_rate)
+
         result = self.decoder(inputs=target_variable,
                               encoder_hidden=encoder_hidden,
                               encoder_outputs=encoder_outputs,
                               function=self.decode_function,
                               teacher_forcing_ratio=teacher_forcing_ratio)
-        return result
+        return result, rate_prediction

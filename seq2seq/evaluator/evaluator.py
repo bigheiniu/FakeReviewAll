@@ -39,7 +39,7 @@ class Evaluator(object):
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         batch_iterator = torchtext.data.BucketIterator(
             dataset=data, batch_size=self.batch_size,
-            sort=True, sort_key= 2,
+            sort=False,
             device=device, train=False)
         tgt_vocab = data.fields[seq2seq.tgt_field_name].vocab
         pad = tgt_vocab.stoi[data.fields[seq2seq.tgt_field_name].pad_token]
@@ -47,12 +47,13 @@ class Evaluator(object):
         gold_list = []
         with torch.no_grad():
             for batch in batch_iterator:
-                input_variables, input_lengths = getattr(batch, seq2seq.src_field_name)
+                input_rate = getattr(batch, seq2seq.src_field_rate)
+                input_item_id = getattr(batch, seq2seq.src_field_itemId)
+                input_user_id = getattr(batch, seq2seq.src_field_userId)
                 target_variables = getattr(batch, seq2seq.tgt_field_name)
-                input_lengths.to(device)
-                input_variables.to(device)
-                target_variables.to(device)
-                decoder_outputs, decoder_hidden, other = model(input_variables, input_lengths.tolist(), target_variables)
+                input_variables = [input_user_id, input_item_id, input_rate]
+                # input_lengths.to(device)
+                (decoder_outputs, decoder_hidden, other), rate_predic = model(input_variables, target_variables)
                 # Evaluation
                 seqlist = other['sequence']
                 pred_list.append(torch.stack(seqlist, dim=1).cpu().numpy().tolist())

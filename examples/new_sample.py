@@ -45,7 +45,7 @@ parser.add_argument('--log-level', dest='log_level',
                     help='Logging level.')
 
 opt = parser.parse_args()
-opt.data_path = "../data/smalldata.txt"
+opt.data_path = "../data/data.txt"
 LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
 logging.info(opt)

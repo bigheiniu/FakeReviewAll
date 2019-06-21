@@ -166,7 +166,10 @@ class DecoderRNN(BaseRNN):
         if isinstance(encoder_hidden, tuple):
             encoder_hidden = tuple([self._cat_directions(h) for h in encoder_hidden])
         else:
-            encoder_hidden = self._cat_directions(encoder_hidden)
+            if len(encoder_hidden.shape) == 2:
+                encoder_hidden = encoder_hidden.unsqueeze(0)
+            else:
+                encoder_hidden = self._cat_directions(encoder_hidden)
         return encoder_hidden
 
     def _cat_directions(self, h):

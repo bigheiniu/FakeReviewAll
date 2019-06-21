@@ -28,7 +28,7 @@ class SupervisedTrainer(object):
     """
     def __init__(self, expt_dir='experiment', loss=NLLLoss(), batch_size=64,
                  random_seed=None,
-                 checkpoint_every=100, print_every=100):
+                 checkpoint_every=100, print_every=100, predic_rate=False):
         self._trainer = "Simple Trainer"
         self.random_seed = random_seed
         if random_seed is not None:
@@ -48,26 +48,33 @@ class SupervisedTrainer(object):
         self.batch_size = batch_size
 
         self.logger = logging.getLogger(__name__)
+        self.predic_rate = predic_rate
+        self.rate_loss = torch.nn.NLLLoss()
 
     def _train_batch(self, input_variable, input_lengths, target_variable, model, teacher_forcing_ratio):
-        loss = self.loss
+        word_loss = self.loss
         # Forward propagation
-        decoder_outputs, decoder_hidden, other = model(input_variable, target_variable,
+        (decoder_outputs, decoder_hidden, other), rate_predic = model(input_variable, target_variable,
                                                        teacher_forcing_ratio=teacher_forcing_ratio)
 
         # Get loss
-        loss.reset()
+        word_loss.reset()
         for step, step_output in enumerate(decoder_outputs):
             batch_size = target_variable.size(0)
-            loss.eval_batch(step_output.contiguous().view(batch_size, -1), target_variable[:, step + 1])
+            word_loss.eval_batch(step_output.contiguous().view(batch_size, -1), target_variable[:, step + 1])
         # Backward propagation
+        if self.predic_rate:
+            rate_loss = self.rate_loss(input_variable[2], rate_predic)
+            all_loss = rate_loss + word_loss.acc_loss
+        else:
+            all_loss = word_loss.acc_loss
         model.zero_grad()
-        loss.backward()
+        all_loss.backward()
         self.optimizer.step()
         # Get the bleu score
         pre_seq = torch.stack(other['sequence'], dim=1).cpu().numpy().tolist()
         gold_seq = target_variable.cpu().numpy().tolist()
-        return loss.get_loss(), pre_seq, gold_seq
+        return word_loss.get_loss(), pre_seq, gold_seq
 
     def _train_epoches(self, data, model, n_epochs, start_epoch, start_step,
                        dev_data=None, teacher_forcing_ratio=0):
@@ -138,9 +145,9 @@ class SupervisedTrainer(object):
             epoch_loss_total = 0
             log_msg = "Finished epoch %d: Train %s: %.4f, bleu_score: %.4f" % (epoch, self.loss.name, epoch_loss_avg, bleu_score)
             if dev_data is not None:
-                dev_loss, accuracy = self.evaluator.evaluate(model, dev_data)
+                dev_loss, accuracy, bleu_score = self.evaluator.evaluate(model, dev_data)
                 self.optimizer.update(dev_loss, epoch)
-                log_msg += ", Dev %s: %.4f, Accuracy: %.4f" % (self.loss.name, dev_loss, accuracy)
+                log_msg += ", Dev %s: %.4f, Accuracy: %.4f, bleu_score: %.4f" % (self.loss.name, dev_loss, accuracy, bleu_score)
                 model.train(mode=True)
             else:
                 self.optimizer.update(epoch_loss_avg, epoch)
