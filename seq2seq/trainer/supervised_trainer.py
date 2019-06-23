@@ -49,7 +49,7 @@ class SupervisedTrainer(object):
 
         self.logger = logging.getLogger(__name__)
         self.predic_rate = predic_rate
-        self.rate_loss = torch.nn.NLLLoss()
+        self.rate_loss = torch.nn.NLLLoss().cuda()
 
     def _train_batch(self, input_variable, input_lengths, target_variable, model, teacher_forcing_ratio):
         word_loss = self.loss
@@ -63,8 +63,11 @@ class SupervisedTrainer(object):
             batch_size = target_variable.size(0)
             word_loss.eval_batch(step_output.contiguous().view(batch_size, -1), target_variable[:, step + 1])
         # Backward propagation
+        th = input_variable[2] - 1
+        th1 = th.unsqueeze(-1)
         if self.predic_rate:
-            rate_loss = self.rate_loss(input_variable[2], rate_predic)
+            rate_loss = self.rate_loss(rate_predic, th)
+            t1 = word_loss.acc_loss
             all_loss = rate_loss + word_loss.acc_loss
         else:
             all_loss = word_loss.acc_loss
@@ -130,13 +133,13 @@ class SupervisedTrainer(object):
                         print_loss_avg)
                     log.info(log_msg)
 
-                # Checkpoint
-                if step % self.checkpoint_every == 0 or step == total_steps:
-                    Checkpoint(model=model,
-                               optimizer=self.optimizer,
-                               epoch=epoch, step=step,
-                               input_vocab=data.fields[seq2seq.src_field_name].vocab,
-                               output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir)
+                # # Checkpoint
+                # if step % self.checkpoint_every == 0 or step == total_steps:
+                #     Checkpoint(model=model,
+                #                optimizer=self.optimizer,
+                #                epoch=epoch, step=step,
+                #                input_vocab=data.fields[seq2seq.src_field_name].vocab,
+                #                output_vocab=data.fields[seq2seq.tgt_field_name].vocab).save(self.expt_dir)
 
             if step_elapsed == 0: continue
 

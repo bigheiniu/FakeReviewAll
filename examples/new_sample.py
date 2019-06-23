@@ -8,7 +8,7 @@ import torchtext
 
 import seq2seq
 from seq2seq.trainer import SupervisedTrainer
-from seq2seq.models import EncoderRNN, DecoderRNN, ItemEncoder, NeuralEditorDecoder, NeuralEditorEncoder,Seq2seq
+from seq2seq.models import EncoderRNN, DecoderRNN, ItemEncoder, ContextDecoderRNN, NeuralEditorEncoder,Seq2seq
 from seq2seq.loss import VAELoss, Perplexity
 from seq2seq.optim import Optimizer
 from seq2seq.dataset import SourceField, TargetField
@@ -45,7 +45,7 @@ parser.add_argument('--log-level', dest='log_level',
                     help='Logging level.')
 
 opt = parser.parse_args()
-opt.data_path = "../data/data.txt"
+opt.data_path = "../data/smalldata.txt"
 LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
 logging.basicConfig(format=LOG_FORMAT, level=getattr(logging, opt.log_level.upper()))
 logging.info(opt)
@@ -128,11 +128,15 @@ else:
         hidden_size=128
         bidirectional = False
         latent_size = 128
-        item_encoder = ItemEncoder(len(input_vocab), hidden_size=hidden_size)
-
-        decoder = DecoderRNN(len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
-                             dropout_p=0.2, use_attention=True, bidirectional=bidirectional,
-                             eos_id=tgt.eos_id, sos_id=tgt.sos_id)
+        item_encoder = ItemEncoder(len(input_vocab), hidden_size=hidden_size, predic_rate=False)
+        #
+        # decoder = DecoderRNN(len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
+        #                      dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
+        #                      eos_id=tgt.eos_id, sos_id=tgt.sos_id)
+        decoder = ContextDecoderRNN(
+            len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
+                             dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
+                             eos_id=tgt.eos_id, sos_id=tgt.sos_id, use_gC2S=True)
 
         seq2seq = Seq2seq(item_encoder, decoder)
         if torch.cuda.is_available():
@@ -150,12 +154,12 @@ else:
         # optimizer.set_scheduler(scheduler)
 
     # train
-    t = SupervisedTrainer(loss=loss, batch_size=32,
+    t = SupervisedTrainer(loss=loss, batch_size=512,
                              checkpoint_every=50,
-                             print_every=10, expt_dir=opt.expt_dir)
+                             print_every=100, expt_dir=opt.expt_dir, predic_rate=False)
 
     seq2seq = t.train(seq2seq, train,
-                      num_epochs=6, dev_data=dev,
+                      num_epochs=20, dev_data=dev,
                       optimizer=optimizer,
                       teacher_forcing_ratio=0.5,
                       resume=opt.resume)

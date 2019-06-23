@@ -5,7 +5,7 @@ class ItemEncoder(nn.Module):
     def __init__(self, embedding_count, hidden_size, decode_layer=1, predic_rate=False, predic_count=5):
         super(ItemEncoder, self).__init__()
         self.embedding = nn.Embedding(embedding_count, hidden_size)
-        self.linear = nn.Linear(3 * hidden_size, decode_layer * hidden_size)
+        self.linear = nn.Linear(2 * hidden_size if predic_rate else 3 * hidden_size, decode_layer * hidden_size)
         self.predic_rate = predic_rate
         #the rate prediction is a regression task
         self.rate_linear = nn.Linear(2 * hidden_size, predic_count)
