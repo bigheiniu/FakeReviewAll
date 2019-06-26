@@ -5,7 +5,7 @@ import torchtext
 
 import seq2seq
 from seq2seq.loss import NLLLoss
-from seq2seq.loss import cal_bleu_score
+from seq2seq.loss import cal_mt_score
 
 class Evaluator(object):
     """ Class to evaluate models with given datasets.
@@ -66,10 +66,10 @@ class Evaluator(object):
                     correct = seqlist[step].view(-1).eq(target).masked_select(non_padding).sum().item()
                     match += correct
                     total += non_padding.sum().item()
-        bleu_score = cal_bleu_score(pred_list, gold_list)
+        metric_result = cal_mt_score(pred_list, gold_list)
         if total == 0:
             accuracy = float('nan')
         else:
             accuracy = match / total
 
-        return loss.get_loss(), accuracy, bleu_score
+        return loss.get_loss(), accuracy, metric_result

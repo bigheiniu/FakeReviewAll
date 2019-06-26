@@ -97,7 +97,7 @@ else:
         filter_pred=len_filter
     )
 
-    train, dev = data.split()
+    train, dev = data.split(split_ratio=0.7)
     itemField.build_vocab(data.userId, data.rate, data.itemId)
     rateField.build_vocab(data.userId, data.rate, data.itemId)
     userField.build_vocab(data.userId, data.rate, data.itemId)
@@ -128,15 +128,15 @@ else:
         hidden_size=128
         bidirectional = False
         latent_size = 128
-        item_encoder = ItemEncoder(len(input_vocab), hidden_size=hidden_size, predic_rate=False)
-        #
-        # decoder = DecoderRNN(len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
-        #                      dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
-        #                      eos_id=tgt.eos_id, sos_id=tgt.sos_id)
-        decoder = ContextDecoderRNN(
-            len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
+        item_encoder = ItemEncoder(len(input_vocab), hidden_size=hidden_size, predic_rate=True)
+
+        decoder = DecoderRNN(len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
                              dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
-                             eos_id=tgt.eos_id, sos_id=tgt.sos_id, use_gC2S=True)
+                             eos_id=tgt.eos_id, sos_id=tgt.sos_id)
+        # decoder = ContextDecoderRNN(
+        #     len(tgt.vocab), max_len, hidden_size * 2 if bidirectional else hidden_size,
+        #                      dropout_p=0.2, use_attention=False, bidirectional=bidirectional,
+        #                      eos_id=tgt.eos_id, sos_id=tgt.sos_id, use_gC2S=True)
 
         seq2seq = Seq2seq(item_encoder, decoder)
         if torch.cuda.is_available():
@@ -156,7 +156,7 @@ else:
     # train
     t = SupervisedTrainer(loss=loss, batch_size=512,
                              checkpoint_every=50,
-                             print_every=100, expt_dir=opt.expt_dir, predic_rate=False)
+                             print_every=100, expt_dir=opt.expt_dir, predic_rate=True)
 
     seq2seq = t.train(seq2seq, train,
                       num_epochs=20, dev_data=dev,

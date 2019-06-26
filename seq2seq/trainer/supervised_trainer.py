@@ -13,7 +13,7 @@ from seq2seq.evaluator import Evaluator
 from seq2seq.loss import NLLLoss
 from seq2seq.optim import Optimizer
 from seq2seq.util.checkpoint import Checkpoint
-from seq2seq.loss import cal_bleu_score
+from seq2seq.loss import cal_mt_score
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 class SupervisedTrainer(object):
@@ -64,10 +64,8 @@ class SupervisedTrainer(object):
             word_loss.eval_batch(step_output.contiguous().view(batch_size, -1), target_variable[:, step + 1])
         # Backward propagation
         th = input_variable[2] - 1
-        th1 = th.unsqueeze(-1)
         if self.predic_rate:
             rate_loss = self.rate_loss(rate_predic, th)
-            t1 = word_loss.acc_loss
             all_loss = rate_loss + word_loss.acc_loss
         else:
             all_loss = word_loss.acc_loss
@@ -110,7 +108,6 @@ class SupervisedTrainer(object):
             for batch in batch_generator:
                 step += 1
                 step_elapsed += 1
-
                 input_rate = getattr(batch, seq2seq.src_field_rate)
                 input_item_id = getattr(batch, seq2seq.src_field_itemId)
                 input_user_id = getattr(batch, seq2seq.src_field_userId)
@@ -143,14 +140,19 @@ class SupervisedTrainer(object):
 
             if step_elapsed == 0: continue
 
-            bleu_score = cal_bleu_score(pred_list, gold_list)
+            metric_result = cal_mt_score(pred_list, gold_list)
             epoch_loss_avg = epoch_loss_total / min(steps_per_epoch, step - start_step)
             epoch_loss_total = 0
-            log_msg = "Finished epoch %d: Train %s: %.4f, bleu_score: %.4f" % (epoch, self.loss.name, epoch_loss_avg, bleu_score)
+            log_msg = "\nFinished epoch %d: Train %s: %.4f" % (epoch, self.loss.name, epoch_loss_avg)
+            for key, value in metric_result.items():
+                log_msg += ' {}:{}, '.format(key, value)
             if dev_data is not None:
-                dev_loss, accuracy, bleu_score = self.evaluator.evaluate(model, dev_data)
+                dev_loss, accuracy, metric_result = self.evaluator.evaluate(model, dev_data)
                 self.optimizer.update(dev_loss, epoch)
-                log_msg += ", Dev %s: %.4f, Accuracy: %.4f, bleu_score: %.4f" % (self.loss.name, dev_loss, accuracy, bleu_score)
+                log_msg += "\n Dev %s: %.4f, Accuracy: %.4f" % (self.loss.name, dev_loss, accuracy)
+                for key, value in metric_result.items():
+                    log_msg += ", {}: {}".format(key, value)
+
                 model.train(mode=True)
             else:
                 self.optimizer.update(epoch_loss_avg, epoch)
