@@ -15,7 +15,7 @@ else:
     import torch as device
 
 
-class NeuralEditorDecoder(BaseRNN):
+class UserDecoder(BaseRNN):
     KEY_ATTN_SCORE = 'attention_score'
     KEY_LENGTH = 'length'
     KEY_SEQUENCE = 'sequence'
@@ -25,13 +25,13 @@ class NeuralEditorDecoder(BaseRNN):
             n_layers=1, rnn_cell='gru', bidirectional=False,
             input_dropout_p=0, dropout_p=0, use_attention=False, embedding=None, update_embedding=True):
 
-        super(NeuralEditorDecoder, self).__init__(vocab_size, max_len, hidden_size,
-                                                  input_dropout_p, dropout_p,
-                                                  n_layers, rnn_cell)
+        super(UserDecoder, self).__init__(vocab_size, max_len, hidden_size,
+                                          input_dropout_p, dropout_p,
+                                          n_layers, rnn_cell)
 
         self.bidirectional_encoder = bidirectional
         self.factor = 2 if self.bidirectional_encoder else 1
-        self.rnn = self.rnn_cell( 2 * hidden_size * self.factor, hidden_size * self.factor, n_layers, batch_first=True, dropout=dropout_p)
+        self.rnn = self.rnn_cell(hidden_size * self.factor, hidden_size * self.factor, n_layers, batch_first=True, dropout=dropout_p)
         #all the vovabary
         self.output_size = vocab_size
         self.max_length = max_len
@@ -50,27 +50,11 @@ class NeuralEditorDecoder(BaseRNN):
         self.gate = nn.Linear(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
-    def forward_step(self, input_var, hidden, encoder_z, encoder_outputs, function):
+    def forward_step(self, input_var, hidden, encoder_outputs, function):
 
         # barch_size * max_len * embedding_size
         embedded = self.embedding(input_var)
         embedded = self.input_dropout(embedded)
-
-        if len(encoder_z.shape) == 2:
-            encoder_z_ = encoder_z.unsqueeze(1)
-        else:
-            encoder_z_ = encoder_z
-
-        if encoder_z_.shape[0] != embedded.shape[0]:
-            encoder_z_ = encoder_z_.transpose(1, 0)
-        else:
-            encoder_z_ = encoder_z_
-
-        if embedded.shape[1] > encoder_z_.shape[1]:
-            encoder_z_ = encoder_z_.expand(-1, embedded.shape[1], -1)
-        embedded = torch.cat((embedded, encoder_z_), 2)
-
-
         #batch, seq_len, num_directions * hidden_size)
         output, hidden = self.rnn(embedded, hidden)
         attn = None
@@ -85,7 +69,7 @@ class NeuralEditorDecoder(BaseRNN):
                     function=F.log_softmax, teacher_forcing_ratio=0):
         ret_dict = dict()
         if self.use_attention:
-            ret_dict[NeuralEditorDecoder.KEY_ATTN_SCORE] = list()
+            ret_dict[UserDecoder.KEY_ATTN_SCORE] = list()
 
         inputs, batch_size, max_length = self._validate_args(inputs, encoder_hidden, None,
                                                              function, teacher_forcing_ratio)
@@ -100,7 +84,7 @@ class NeuralEditorDecoder(BaseRNN):
         def decode(step, step_output, step_attn):
             decoder_outputs.append(step_output)
             if self.use_attention:
-                ret_dict[NeuralEditorDecoder.KEY_ATTN_SCORE].append(step_attn)
+                ret_dict[UserDecoder.KEY_ATTN_SCORE].append(step_attn)
             symbols = decoder_outputs[-1].topk(1)[1]
             sequence_symbols.append(symbols)
 
@@ -115,7 +99,7 @@ class NeuralEditorDecoder(BaseRNN):
         # If teacher_forcing_ratio is True or False instead of a probability, the unrolling can be done in graph
         if use_teacher_forcing:
             decoder_input = inputs[:, :-1]
-            decoder_output, decoder_hidden, attn = self.forward_step(decoder_input, decoder_hidden, encoder_z, encoder_outputs,
+            decoder_output, decoder_hidden, attn = self.forward_step(decoder_input, decoder_hidden, encoder_outputs,
                                                                      function=function)
 
             for di in range(decoder_output.size(1)):
@@ -128,14 +112,14 @@ class NeuralEditorDecoder(BaseRNN):
         else:
             decoder_input = inputs[:, 0].unsqueeze(1)
             for di in range(max_length):
-                decoder_output, decoder_hidden, step_attn = self.forward_step(decoder_input, decoder_hidden, encoder_z, encoder_outputs,
+                decoder_output, decoder_hidden, step_attn = self.forward_step(decoder_input, decoder_hidden, encoder_outputs,
                                                                          function=function)
                 step_output = decoder_output.squeeze(1)
                 symbols = decode(di, step_output, step_attn)
                 decoder_input = symbols
 
-        ret_dict[NeuralEditorDecoder.KEY_SEQUENCE] = sequence_symbols
-        ret_dict[NeuralEditorDecoder.KEY_LENGTH] = lengths.tolist()
+        ret_dict[UserDecoder.KEY_SEQUENCE] = sequence_symbols
+        ret_dict[UserDecoder.KEY_LENGTH] = lengths.tolist()
         return decoder_outputs, z_dis, ret_dict
 
     def _gate_hidden(self, decoder_hidden, encoder_hidden):
