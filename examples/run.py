@@ -7,7 +7,7 @@ from torch.optim.lr_scheduler import StepLR
 import torchtext
 
 import seq2seq
-from seq2seq.trainer import VAESupervisedTrainer
+from seq2seq.trainer import SupervisedTrainer
 from seq2seq.models import EncoderRNN, DecoderRNN, Seq2seq
 from seq2seq.loss import Perplexity
 from seq2seq.optim import Optimizer
@@ -29,9 +29,9 @@ except NameError:
 #      python examples/sample.py --train_path $TRAIN_PATH --dev_path $DEV_PATH --expt_dir $EXPT_PATH --load_checkpoint $CHECKPOINT_DIR
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--train_path', action='store', dest='train_path', default='/home/yichuan/course/seq2/data/toy_reverse/train/data.txt',
+parser.add_argument('--train_path', action='store', dest='train_path',
                     help='Path to train data')
-parser.add_argument('--dev_path', action='store', dest='dev_path', default='/home/yichuan/course/seq2/data/toy_reverse/dev/data.txt',
+parser.add_argument('--dev_path', action='store', dest='dev_path',
                     help='Path to dev data')
 parser.add_argument('--expt_dir', action='store', dest='expt_dir', default='./experiment',
                     help='Path to experiment directory. If load_checkpoint is True, then path to checkpoint directory has to be provided')
@@ -118,9 +118,9 @@ else:
         # optimizer.set_scheduler(scheduler)
 
     # train
-    t = VAESupervisedTrainer(loss=loss, batch_size=32,
-                             checkpoint_every=50,
-                             print_every=10, expt_dir=opt.expt_dir)
+    t = SupervisedTrainer(loss=loss, batch_size=32,
+                          checkpoint_every=50,
+                          print_every=10, expt_dir=opt.expt_dir)
 
     seq2seq = t.train(seq2seq, train,
                       num_epochs=6, dev_data=dev,

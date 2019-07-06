@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class Discriminator(nn.Module):
     def __init__(self, hidden_dim, clf_layers):
         super(Discriminator, self).__init__()
@@ -29,3 +30,33 @@ class Discriminator(nn.Module):
         loss_fn = nn.BCELoss()
         out = self.forward(in_hidden)
         return loss_fn(out, target)
+
+class RNNclaissfier(nn.Module):
+    def __init__(self, encoderRNN, discriminator):
+        super(RNNclaissfier, self).__init__()
+        self.encoder = encoderRNN
+        self.clf = discriminator
+
+    def forward(self, onehot_seq, onehot_label, con_seq=None,
+                con_label=None):
+        _, hidden = self.encoder(onehot_seq, is_onehot=True)
+        onehot_state = hidden[0].view(hidden.shape[0], -1)
+        if con_seq is not None:
+            _, hidden = self.encoder(con_seq, is_onehot=False)
+            con_state = hidden[0].view(hidden.shape[0], -1)
+            all_state = torch.cat((onehot_state, con_state), dim=0)
+            all_label = torch.cat((onehot_label, con_label), dim=0)
+        else:
+            all_state = onehot_state
+            all_label = onehot_label
+
+        #shuffle data
+        shuffle_index = torch.randperm(all_state.shape[0])
+        all_state = all_state[shuffle_index]
+        all_label = all_label[shuffle_index]
+        loss = self.clf.batchBCELoss(all_state, all_label)
+        return loss
+
+
+
+

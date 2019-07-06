@@ -12,7 +12,9 @@ from seq2seq.optim import Optimizer
 from seq2seq.dataset import SourceField, TargetField
 from seq2seq.evaluator import Predictor
 from seq2seq.util.checkpoint import Checkpoint
+import torchtext
 import sys
+import torch.optim as optim
 
 
 def helper_fusion(pos_data, neg_data):
@@ -48,21 +50,21 @@ def train_LM(seq2seq, train_fake_data, dev_fake_data, opt, loss, optimizer):
     return seq2seq
 
 
-def pre_train_deceptive(dis_desc, dis_desc_opt, data, opt):
+def pre_train_deceptive(rnn_claissfier, classifier_opt, data, opt):
     epochs = opt.epochs
     for epochs in range(epochs):
         total_loss = 0
         for batch in data:
             feature, label = map(lambda x: x.to(opt.device), batch)
-            dis_desc_opt.zero_grad()
-            loss = dis_desc(feature, label)
+            classifier_opt.zero_grad()
+            loss = rnn_claissfier(feature, label)
             loss.backward()
-            dis_desc_opt.step()
+            classifier_opt.step()
 
             total_loss += loss.item()
-    return dis_desc
+    return rnn_claissfier
 
-def train_discriminator(discriminator, dis_opt, gen, pos_data, opt):
+def train_discriminator(discriminator, dis_opt, seq2seq, rnn_classifier, rnn_opt, gen, pos_data, opt):
     epochs = opt.epochs
     for epoch in range(epochs):
         print('epoch %d : ' % (epoch + 1), end='')
@@ -71,6 +73,7 @@ def train_discriminator(discriminator, dis_opt, gen, pos_data, opt):
         # clf the simulate text and fake text
         for batch in range(0, opt.POS_NEG_SAMPLES, opt.BATCH_SIZE):
             feature, label = map(lambda x: x.to(opt.device), batch)
+            hidden = seq2seq.encoder_seq(feature)
             shape = torch.size((opt.BATCH_SIZE, opt.z_hidden_size))
             if next(discriminator.parameters()).is_cuda:
                 z = torch.cuda.FloatTensor(shape)
@@ -78,16 +81,32 @@ def train_discriminator(discriminator, dis_opt, gen, pos_data, opt):
                 z = torch.FloatTensor(shape)
 
             torch.randn(shape, out=z)
-            # generate fake review
+            # classify the hidden state
             sim_data = gen(z)
-            all_data, label = helper_fusion(feature, sim_data)
+            all_data, label = helper_fusion(hidden, sim_data)
             dis_opt.zero_grad()
             loss = discriminator(all_data, label)
             loss.backward()
             dis_opt.step()
 
             total_loss += loss.item()
-    return discriminator
+
+        # train the classifier
+        for batch in range(0, 10, 1):
+            feature, label = map(lambda x: x.to(opt.device), batch)
+            shape = torch.size((opt.BATCH_SIZE, opt.z_hidden_size))
+            if next(discriminator.parameters()).is_cuda:
+                z = torch.cuda.FloatTensor(shape)
+            else:
+                z = torch.FloatTensor(shape)
+
+            # sim_seq: distribution of words
+            sim_seq = seq2seq.decoder_hidden(z)
+            sim_label = torch.zeros_like(label)
+            loss = rnn_classifier(feature, label, sim_seq, sim_label)
+            total_loss += loss.item()
+
+    # return discriminator
     #TODO: print total loss
 
 
@@ -109,14 +128,65 @@ def train_gen(gen, gen_opt, dis_simulate, fake_data, opt, epochs):
 
 
 def prepare_data(opt):
+
     # seq-seq torch text
     # seq-label simulate dataset
     # seq-label real dataset
     # seq-label all dataset
+    tgt = TargetField()
+    src = SourceField()
+    label = torchtext.data.Field(sequential=False)
+    fake_data_lm = torchtext.data.TabularDataset(
+        path=opt.fake_data_path, format='tsv',
+        fields=[('src', src), ('tgt', tgt), ('label', label)]
+    )
 
-    pass
+
+    real_data_clf = torchtext.data.TabularDataset(
+        path=opt.real_data_path, format='tsv',
+        fields=[('src', src), ('label', label)]
+    )
+
+    all_data_clf = torchtext.data.TabularDataset(
+        path=opt.real_data_path, format='tsv',
+        fields=[('src', src), ('label', label)]
+    )
+    train_clf, test_clf = all_data_clf.split()
+    src.build_vocab(all_data_clf.src, max_size=opt.max_word)
+    tgt.vocab = src.vocab
+    input_vocab = src.vocab
+    output_vocab = tgt.vocab
+
+    return fake_data_lm, real_data_clf, train_clf, test_clf, input_vocab, output_vocab
 
 
+def prepare_loss(tgt, opt):
+    weight = torch.ones(len(tgt.vocab))
+    pad = tgt.vocab.stoi[tgt.pad_token]
+    loss = Perplexity(weight, pad)
+    if opt.is_cuda:
+        loss.cuda()
+    return loss
+
+def prepare_model(opt, vocab_size, tgt):
+
+    # Prepare loss
+    encoder = EncoderRNN(vocab_size, opt.max_len, opt.hidden_size,
+                         bidirectional=opt.bidirectional, variable_lengths=True)
+    decoder = DecoderRNN(vocab_size, opt.max_len, opt.hidden_size* 2 if opt.bidirectional else opt.hidden_size,
+                         dropout_p=opt.dropout, use_attention=True, bidirectional=opt.bidirectional,
+                         eos_id=tgt.eos_id, sos_id=tgt.sos_id)
+    seq2seq = Seq2seq(encoder, decoder)
+
+
+    gen = Generator(opt.hidden_size, opt.z_size)
+    dis_dec = Discriminator(opt.hidden_size, opt.clf_layers)
+    dis_gen = Discriminator(opt.hidden_size, opt.clf_layers)
+    opt_gen = optim.Adam(gen.parameters(), lr=opt.gen_lr)
+    opt_dis_dec = optim.Adam(dis_dec.parameters(), lr=opt.dis_dec_lr)
+    opt_dis_gen = optim.Adam(dis_gen.parameters(), lr=opt.dis_gen_lr)
+
+    return seq2seq, gen, opt_gen, dis_dec, opt_dis_dec, dis_gen, opt_dis_gen
 
 
 

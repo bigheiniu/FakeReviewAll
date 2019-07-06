@@ -1,5 +1,5 @@
 import torch.nn as nn
-
+import torch
 from .baseRNN import BaseRNN
 
 class EncoderRNN(BaseRNN):
@@ -52,7 +52,7 @@ class EncoderRNN(BaseRNN):
         self.rnn = self.rnn_cell(hidden_size, hidden_size, n_layers,
                                  batch_first=True, bidirectional=bidirectional, dropout=dropout_p)
 
-    def forward(self, input_var, input_lengths=None):
+    def forward(self, input_var, is_onehot=True, input_lengths=None):
         """
         Applies a multi-layer RNN to an input sequence.
 
@@ -65,7 +65,10 @@ class EncoderRNN(BaseRNN):
             - **output** (batch, seq_len, hidden_size): variable containing the encoded features of the input sequence
             - **hidden** (num_layers * num_directions, batch, hidden_size): variable containing the features in the hidden state h
         """
-        embedded = self.embedding(input_var)
+        if is_onehot:
+            embedded = self.embedding(input_var)
+        else:
+            embedded = torch.matmul(input_var, self.embedding.weight)
         embedded = self.input_dropout(embedded)
         if self.variable_lengths:
             embedded = nn.utils.rnn.pack_padded_sequence(embedded, input_lengths, batch_first=True)

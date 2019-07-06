@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class Generator(nn.Module):
-    def __init__(self, hidden_size, z_size, z_repre_layer):
+    def __init__(self, hidden_size, z_size):
         super(Generator, self).__init__()
         def block(in_feat, out_feat, normalize=True):
             layers = [nn.Linear(in_feat, out_feat)]
