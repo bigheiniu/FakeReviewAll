@@ -29,12 +29,10 @@ def helper_fusion(pos_data, neg_data):
     all_data = all_data[perm]
     label = label[perm]
 
-    # neg = torch.cat((neg_data, label_pos), dim=-1)
-    # all_data = torch.cat((pos, neg), dim=0)
     return all_data, label
 
 
-def train_LM(seq2seq, train_fake_data, dev_fake_data, opt, loss, optimizer):
+def train_LM( opt, loss, seq2seq, train_fake_data, dev_fake_data=None, optimizer=None):
     # train
 
     t = SupervisedTrainer(loss=loss, batch_size=opt.batch_size,
@@ -46,7 +44,6 @@ def train_LM(seq2seq, train_fake_data, dev_fake_data, opt, loss, optimizer):
                       optimizer=optimizer,
                       teacher_forcing_ratio=opt.teach_force_ratio,
                       resume=opt.resume)
-
     return seq2seq
 
 
@@ -54,8 +51,10 @@ def pre_train_deceptive(rnn_claissfier, classifier_opt, data, opt):
     epochs = opt.epochs
     for epochs in range(epochs):
         total_loss = 0
-        for batch in data:
-            feature, label = map(lambda x: x.to(opt.device), batch)
+        data_iter = data.__iter__()
+        for batch in data_iter:
+            feature = getattr(batch, 'src')
+            label = getattr(batch, 'label')
             classifier_opt.zero_grad()
             loss = rnn_claissfier(feature, label)
             loss.backward()
@@ -64,15 +63,17 @@ def pre_train_deceptive(rnn_claissfier, classifier_opt, data, opt):
             total_loss += loss.item()
     return rnn_claissfier
 
-def train_discriminator(discriminator, dis_opt, seq2seq, rnn_classifier, rnn_opt, gen, pos_data, opt):
+def train_discriminator(discriminator, dis_opt, seq2seq, rnn_classifier, rnn_opt, gen, real_data, fake_data, opt):
     epochs = opt.epochs
     for epoch in range(epochs):
         print('epoch %d : ' % (epoch + 1), end='')
         sys.stdout.flush()
         total_loss = 0
         # clf the simulate text and fake text
-        for batch in range(0, opt.POS_NEG_SAMPLES, opt.BATCH_SIZE):
-            feature, label = map(lambda x: x.to(opt.device), batch)
+        fake_iter = fake_data.__iter__()
+        discriminator.train(True)
+        for batch in fake_iter:
+            feature = getattr(batch, 'src')
             hidden = seq2seq.encoder_seq(feature)
             shape = torch.size((opt.BATCH_SIZE, opt.z_hidden_size))
             if next(discriminator.parameters()).is_cuda:
@@ -92,8 +93,10 @@ def train_discriminator(discriminator, dis_opt, seq2seq, rnn_classifier, rnn_opt
             total_loss += loss.item()
 
         # train the classifier
-        for batch in range(0, 10, 1):
-            feature, label = map(lambda x: x.to(opt.device), batch)
+        real_iter = real_data.__iter__()
+        for batch in real_iter:
+            feature = getattr(batch, 'src')
+            label = getattr(batch, 'label')
             shape = torch.size((opt.BATCH_SIZE, opt.z_hidden_size))
             if next(discriminator.parameters()).is_cuda:
                 z = torch.cuda.FloatTensor(shape)
@@ -103,16 +106,19 @@ def train_discriminator(discriminator, dis_opt, seq2seq, rnn_classifier, rnn_opt
             # sim_seq: distribution of words
             sim_seq = seq2seq.decoder_hidden(z)
             sim_label = torch.zeros_like(label)
+            rnn_opt.zero_grad()
             loss = rnn_classifier(feature, label, sim_seq, sim_label)
+            loss.backward()
+            rnn_opt.step()
             total_loss += loss.item()
 
     # return discriminator
     #TODO: print total loss
 
 
-def train_gen(gen, gen_opt, dis_simulate, fake_data, opt, epochs):
+def train_gen(gen, gen_opt, dis_simulate, opt, epochs):
     for epoch in range(epochs):
-        for batch in opt.batch_count:
+        for _ in opt.batch_count:
             shape = torch.size((opt.BATCH_SIZE, opt.z_hidden_size))
             if next(gen.parameters()).is_cuda:
                 z = torch.cuda.FloatTensor(shape)
@@ -125,6 +131,7 @@ def train_gen(gen, gen_opt, dis_simulate, fake_data, opt, epochs):
             gen_opt.zero_grad()
             loss = dis_simulate(sim_data, torch.zeros((sim_data.shape[0], 1), device=opt.device, dtype=torch.long))
             loss.backward()
+            gen_opt.step()
 
 
 def prepare_data(opt):
@@ -157,7 +164,7 @@ def prepare_data(opt):
     input_vocab = src.vocab
     output_vocab = tgt.vocab
 
-    return fake_data_lm, real_data_clf, train_clf, test_clf, input_vocab, output_vocab
+    return fake_data_lm, real_data_clf, train_clf, test_clf, input_vocab, tgt
 
 
 def prepare_loss(tgt, opt):
@@ -187,6 +194,26 @@ def prepare_model(opt, vocab_size, tgt):
     opt_dis_gen = optim.Adam(dis_gen.parameters(), lr=opt.dis_gen_lr)
 
     return seq2seq, gen, opt_gen, dis_dec, opt_dis_dec, dis_gen, opt_dis_gen
+
+
+def main(parser):
+    opt = parser
+    fake_data_lm, real_data_clf, train_clf, test_clf, vocab, tgt = prepare_data(opt)
+    seq2seq, gen, opt_gen, rnn_claissfier, classifier_opt, dis_gen, opt_dis_gen = \
+        prepare_model(opt, len(vocab), tgt=tgt)
+    
+    # pre-train the LM model
+    loss = prepare_loss(tgt, opt)
+    seq2seq = train_LM(opt, loss, seq2seq, fake_data_lm)
+
+    # pre-train the classify model
+    pre_train_deceptive(rnn_claissfier, classifier_opt, train_clf, opt)
+
+    # train the generator
+
+    # train the discriminator
+
+
 
 
 
