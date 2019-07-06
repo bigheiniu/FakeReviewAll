@@ -63,7 +63,7 @@ def pre_train_deceptive(rnn_claissfier, classifier_opt, data, opt):
             total_loss += loss.item()
     return rnn_claissfier
 
-def train_discriminator(discriminator, dis_opt, seq2seq, rnn_classifier, rnn_opt, gen, real_data, fake_data, opt):
+def train_discriminator(discriminator, dis_opt, seq2seq, gen, fake_data, opt):
     epochs = opt.epochs
     for epoch in range(epochs):
         print('epoch %d : ' % (epoch + 1), end='')
@@ -93,31 +93,36 @@ def train_discriminator(discriminator, dis_opt, seq2seq, rnn_classifier, rnn_opt
             total_loss += loss.item()
 
         # train the classifier
+
+
+    # return discriminator
+    #TODO: print total loss
+
+def train_classifier(opt, real_data, gen, seq2seq, rnn_classifier, rnn_opt):
+    for epoch in range(opt.epochs):
         real_iter = real_data.__iter__()
         for batch in real_iter:
             feature = getattr(batch, 'src')
             label = getattr(batch, 'label')
             shape = torch.size((opt.BATCH_SIZE, opt.z_hidden_size))
-            if next(discriminator.parameters()).is_cuda:
+            if next(rnn_classifier.parameters()).is_cuda:
                 z = torch.cuda.FloatTensor(shape)
             else:
                 z = torch.FloatTensor(shape)
 
             # sim_seq: distribution of words
-            sim_seq = seq2seq.decoder_hidden(z)
+            sim_hidden = gen(z)
+            sim_seq = seq2seq.decoder_hidden(sim_hidden)
             sim_label = torch.zeros_like(label)
             rnn_opt.zero_grad()
             loss = rnn_classifier(feature, label, sim_seq, sim_label)
             loss.backward()
             rnn_opt.step()
-            total_loss += loss.item()
-
-    # return discriminator
-    #TODO: print total loss
 
 
-def train_gen(gen, gen_opt, dis_simulate, opt, epochs):
-    for epoch in range(epochs):
+
+def train_gen(gen, gen_opt, dis_simulate, opt):
+    for epoch in range(opt.epochs):
         for _ in opt.batch_count:
             shape = torch.size((opt.BATCH_SIZE, opt.z_hidden_size))
             if next(gen.parameters()).is_cuda:
@@ -154,12 +159,15 @@ def prepare_data(opt):
         fields=[('src', src), ('label', label)]
     )
 
-    all_data_clf = torchtext.data.TabularDataset(
-        path=opt.real_data_path, format='tsv',
+    train_clf = torchtext.data.TabularDataset(
+        path=opt.train_data_path, format='tsv',
         fields=[('src', src), ('label', label)]
     )
-    train_clf, test_clf = all_data_clf.split()
-    src.build_vocab(all_data_clf.src, max_size=opt.max_word)
+    test_clf = torchtext.data.TabularDataset(
+        path=opt.test_data_path, format='tsv',
+        fields=[('src', src), ('label', label)]
+    )
+    src.build_vocab(train_clf.src, test_clf.src, max_size=opt.max_word)
     tgt.vocab = src.vocab
     input_vocab = src.vocab
     output_vocab = tgt.vocab
@@ -210,8 +218,17 @@ def main(parser):
     pre_train_deceptive(rnn_claissfier, classifier_opt, train_clf, opt)
 
     # train the generator
+    train_gen(gen, opt_gen, dis_gen, opt)
 
     # train the discriminator
+    train_discriminator(dis_gen, opt_dis_gen, seq2seq, gen, fake_data_lm, opt)
+
+    # train the classification
+    train_classifier(opt, real_data_clf, gen, seq2seq, rnn_claissfier, classifier_opt)
+
+
+
+
 
 
 
