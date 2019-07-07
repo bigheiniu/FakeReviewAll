@@ -11,13 +11,15 @@ class Discriminator(nn.Module):
             for _ in range(clf_layers)
         ])
         self.hidden2out = nn.Linear(hidden_dim, 1)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, hidden):
         # classify the simulating hidden representation and real hidden representation
         for layer in self.represent_layer_list:
             hidden = layer(hidden)
         out = self.hidden2out(hidden)
-        return out
+        logit = self.sigmoid(out)
+        return logit
 
     def batchBCELoss(self, in_hidden, target):
         """
@@ -29,7 +31,8 @@ class Discriminator(nn.Module):
 
         loss_fn = nn.BCELoss()
         out = self.forward(in_hidden)
-        return loss_fn(out, target)
+        return loss_fn(out, target), {'y_pre': torch.where(out > 0.5, torch.ones_like(out), torch.zeros_like(out)),
+                                      'y_true': target}
 
 class RNNclaissfier(nn.Module):
     def __init__(self, encoderRNN, discriminator):
@@ -54,8 +57,8 @@ class RNNclaissfier(nn.Module):
         shuffle_index = torch.randperm(all_state.shape[0])
         all_state = all_state[shuffle_index]
         all_label = all_label[shuffle_index]
-        loss = self.clf.batchBCELoss(all_state, all_label)
-        return loss
+        loss, out = self.clf.batchBCELoss(all_state, all_label)
+        return loss, out
 
 
 

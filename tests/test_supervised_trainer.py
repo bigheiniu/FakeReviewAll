@@ -4,8 +4,8 @@ import os
 import mock
 import torchtext
 
-from seq2seq.dataset import SourceField, TargetField
-from seq2seq.trainer import VAESupervisedTrainer
+from SeqModel.dataset import SourceField, TargetField
+from SeqModel.trainer import VAESupervisedTrainer
 
 class TestSupervisedTrainer(unittest.TestCase):
 

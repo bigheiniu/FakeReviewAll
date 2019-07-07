@@ -5,7 +5,7 @@ import shutil
 import mock
 from mock import ANY
 
-from seq2seq.util.checkpoint import Checkpoint
+from SeqModel.util.checkpoint import Checkpoint
 
 
 class TestCheckpoint(unittest.TestCase):

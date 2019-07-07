@@ -5,7 +5,7 @@ checkpoint
 checkpoint/*
 data/
 *.csv
-
+*.zip
 # Operating system related file
 .DS_Store
 

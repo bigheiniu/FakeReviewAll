@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from seq2seq.models import DecoderRNN, TopKDecoder
+from SeqModel.models import DecoderRNN, TopKDecoder
 
 class TestDecoderRNN(unittest.TestCase):
 

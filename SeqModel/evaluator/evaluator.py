@@ -3,9 +3,9 @@ from __future__ import print_function, division
 import torch
 import torchtext
 
-import seq2seq
-from seq2seq.loss import NLLLoss
-from seq2seq.loss import cal_mt_score
+import SeqModel
+from SeqModel.loss import NLLLoss
+from SeqModel.loss import cal_mt_score
 
 class Evaluator(object):
     """ Class to evaluate models with given datasets.
@@ -41,16 +41,16 @@ class Evaluator(object):
             dataset=data, batch_size=self.batch_size,
             sort=False,
             device=device, train=False)
-        tgt_vocab = data.fields[seq2seq.tgt_field_name].vocab
-        pad = tgt_vocab.stoi[data.fields[seq2seq.tgt_field_name].pad_token]
+        tgt_vocab = data.fields[SeqModel.tgt_field_name].vocab
+        pad = tgt_vocab.stoi[data.fields[SeqModel.tgt_field_name].pad_token]
         pred_list = []
         gold_list = []
         with torch.no_grad():
             for batch in batch_iterator:
-                input_rate = getattr(batch, seq2seq.src_field_rate)
-                input_item_id = getattr(batch, seq2seq.src_field_itemId)
-                input_user_id = getattr(batch, seq2seq.src_field_userId)
-                target_variables = getattr(batch, seq2seq.tgt_field_name)
+                input_rate = getattr(batch, SeqModel.src_field_rate)
+                input_item_id = getattr(batch, SeqModel.src_field_itemId)
+                input_user_id = getattr(batch, SeqModel.src_field_userId)
+                target_variables = getattr(batch, SeqModel.tgt_field_name)
                 input_variables = [input_user_id, input_item_id, input_rate]
                 # input_lengths.to(device)
                 (decoder_outputs, decoder_hidden, other), rate_predic = model(input_variables, target_variables)

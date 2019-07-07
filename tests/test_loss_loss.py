@@ -6,8 +6,8 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-from seq2seq.loss.loss import Loss
-from seq2seq.loss import NLLLoss, Perplexity
+from SeqModel.loss.loss import Loss
+from SeqModel.loss import NLLLoss, Perplexity
 
 class TestLoss(unittest.TestCase):
     @classmethod

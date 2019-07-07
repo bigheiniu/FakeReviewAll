@@ -6,9 +6,9 @@ import unittest
 from mock import MagicMock, patch, call, ANY
 import torchtext
 
-from seq2seq.dataset import SourceField, TargetField
-from seq2seq.evaluator import Evaluator
-from seq2seq.models import Seq2seq, EncoderRNN, DecoderRNN
+from SeqModel.dataset import SourceField, TargetField
+from SeqModel.evaluator import Evaluator
+from SeqModel.models import Seq2seq, EncoderRNN, DecoderRNN
 
 class TestPredictor(unittest.TestCase):
 

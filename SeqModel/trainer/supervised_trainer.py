@@ -8,12 +8,12 @@ import torch
 import torchtext
 from torch import optim
 
-import seq2seq
-from seq2seq.evaluator import Evaluator
-from seq2seq.loss import NLLLoss
-from seq2seq.optim import Optimizer
-from seq2seq.util.checkpoint import Checkpoint
-from seq2seq.loss import cal_mt_score
+import SeqModel
+from SeqModel.evaluator import Evaluator
+from SeqModel.loss import NLLLoss
+from SeqModel.optim import Optimizer
+from SeqModel.util.checkpoint import Checkpoint
+from SeqModel.loss import cal_mt_score
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 class SupervisedTrainer(object):
@@ -108,10 +108,10 @@ class SupervisedTrainer(object):
             for batch in batch_generator:
                 step += 1
                 step_elapsed += 1
-                input_rate = getattr(batch, seq2seq.src_field_rate)
-                input_item_id = getattr(batch, seq2seq.src_field_itemId)
-                input_user_id = getattr(batch, seq2seq.src_field_userId)
-                target_variables = getattr(batch, seq2seq.tgt_field_name)
+                input_rate = getattr(batch, SeqModel.src_field_rate)
+                input_item_id = getattr(batch, SeqModel.src_field_itemId)
+                input_user_id = getattr(batch, SeqModel.src_field_userId)
+                target_variables = getattr(batch, SeqModel.tgt_field_name)
                 input_variables = [input_user_id, input_item_id, input_rate]
 
                 loss, pred_seq, gold_seq = self._train_batch(input_variables, None, target_variables, model, teacher_forcing_ratio)

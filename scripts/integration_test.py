@@ -5,13 +5,13 @@ import logging
 import torch
 import torchtext
 
-import seq2seq
-from seq2seq.trainer import VAESupervisedTrainer
-from seq2seq.models import EncoderRNN, DecoderRNN, TopKDecoder, ItemEncoder, Seq2seq
-from seq2seq.loss import Perplexity
-from seq2seq.dataset import SourceField, TargetField
-from seq2seq.evaluator import Predictor, Evaluator
-from seq2seq.util.checkpoint import Checkpoint
+import SeqModel
+from SeqModel.trainer import VAESupervisedTrainer
+from SeqModel.models import EncoderRNN, DecoderRNN, TopKDecoder, ItemEncoder, Seq2seq
+from SeqModel.loss import Perplexity
+from SeqModel.dataset import SourceField, TargetField
+from SeqModel.evaluator import Predictor, Evaluator
+from SeqModel.util.checkpoint import Checkpoint
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--train_path', action='store', dest='train_path',
