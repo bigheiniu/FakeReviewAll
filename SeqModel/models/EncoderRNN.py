@@ -38,7 +38,7 @@ class EncoderRNN(BaseRNN):
     """
 
     def __init__(self, vocab_size, max_len, hidden_size,
-                 input_dropout_p=0, dropout_p=0,
+                 input_dropout_p=0., dropout_p=0.,
                  n_layers=1, bidirectional=False, rnn_cell='gru', variable_lengths=False,
                  embedding=None, update_embedding=True):
         super(EncoderRNN, self).__init__(vocab_size, max_len, hidden_size,
@@ -47,10 +47,19 @@ class EncoderRNN(BaseRNN):
         self.variable_lengths = variable_lengths
         self.embedding = nn.Embedding(vocab_size, hidden_size)
         if embedding is not None:
-            self.embedding.weight = nn.Parameter(embedding)
+            self.embedding.weight = embedding
         self.embedding.weight.requires_grad = update_embedding
+        self.hidden_size = hidden_size
+        self.others_size = 2 * n_layers if bidirectional else n_layers
+        self.rnn_type = rnn_cell
         self.rnn = self.rnn_cell(hidden_size, hidden_size, n_layers,
                                  batch_first=True, bidirectional=bidirectional, dropout=dropout_p)
+
+
+    # def init_hidden(self, batch_size, device):
+    #     hidden_state = torch.zeros((self.others_size, batch_size, self.hidden_size), device=device, dtype=torch.float)
+    #     cell_state = torch.zeros((self.others_size, batch_size, self.hidden_size), device=device, dtype=torch.float)
+    #     return hidden_state, cell_state
 
     def forward(self, input_var, is_onehot=True, input_lengths=None):
         """
@@ -72,7 +81,11 @@ class EncoderRNN(BaseRNN):
         embedded = self.input_dropout(embedded)
         if self.variable_lengths:
             embedded = nn.utils.rnn.pack_padded_sequence(embedded, input_lengths, batch_first=True)
-        output, hidden = self.rnn(embedded)
+        # hidden, cell = self.init_hidden(input_var.shape[0], input_var.device)
+        if self.rnn_type.lower() == "gru":
+            output, hidden = self.rnn(embedded)
+        else:
+            output, hidden = self.rnn(embedded)
         if self.variable_lengths:
             output, _ = nn.utils.rnn.pad_packed_sequence(output, batch_first=True)
         return output, hidden

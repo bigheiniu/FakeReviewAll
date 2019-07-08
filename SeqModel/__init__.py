@@ -1,4 +1,4 @@
-src_field_name = 'itemId'
+src_field_name = 'src'
 
 src_field_itemId = 'itemId'
 src_field_userId = 'userId'

@@ -279,6 +279,7 @@ def cal_mt_score(hypoes, refs):
             ref_list.append(j)
 
     metric_result = {}
+
     metric_result['bleu_1'] = corpus_bleu(hypo_list, ref_list, weights=[1,0,0,0])
     metric_result['bleu_2'] = corpus_bleu(hypo_list, ref_list, weights=[0,1,0,0])
     metric_result['bleu_3'] = corpus_bleu(hypo_list, ref_list, weights=[0,0,1,0])

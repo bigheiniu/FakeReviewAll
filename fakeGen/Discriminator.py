@@ -40,12 +40,12 @@ class RNNclaissfier(nn.Module):
         self.encoder = encoderRNN
         self.clf = discriminator
 
-    def forward(self, onehot_seq, onehot_label, con_seq=None,
-                con_label=None):
-        _, hidden = self.encoder(onehot_seq, is_onehot=True)
+    def forward(self, onehot_seq, onehot_label,onehot_length=None, con_seq=None,
+                con_label=None, con_length=None):
+        _, hidden = self.encoder(onehot_seq, is_onehot=True, input_length=onehot_length.tolist())
         onehot_state = hidden[0].view(hidden.shape[0], -1)
         if con_seq is not None:
-            _, hidden = self.encoder(con_seq, is_onehot=False)
+            _, hidden = self.encoder(con_seq, is_onehot=False, input_length=con_length)
             con_state = hidden[0].view(hidden.shape[0], -1)
             all_state = torch.cat((onehot_state, con_state), dim=0)
             all_label = torch.cat((onehot_label, con_label), dim=0)

@@ -61,7 +61,7 @@ def pre_train_deceptive(rnn_claissfier, classifier_opt, data, opt):
         total_loss = 0
         data_iter = data.__iter__()
         for batch in data_iter:
-            feature = getattr(batch, 'src')
+            feature, input_length = getattr(batch, 'src')
             label = getattr(batch, 'label')
             classifier_opt.zero_grad()
             loss, _ = rnn_claissfier(feature, label)
@@ -212,39 +212,51 @@ def prepare_data(opt):
     src = SourceField()
     label = torchtext.data.Field(sequential=False)
     fake_data_lm = torchtext.data.TabularDataset(
-        path=opt.fake_data_path, format='tsv',
-        fields=[('src', src), ('tgt', tgt), ('label', label)]
+        path=opt.fake_data_path, format='csv',
+        fields=[('src', src), ('label', label), ('tgt', tgt)]
     )
-    fake_data_lm = torchtext.data.BucketIterator(
-        dataset=fake_data_lm, batch_size=opt.batch_size,
+
+    real_data_clf = torchtext.data.TabularDataset(
+        path=opt.real_data_path, format='csv',
+        fields=[('src', src), ('label', label)]
+    )
+
+    train_clf = torchtext.data.TabularDataset(
+        path=opt.train_data_path, format='csv',
+        fields=[('src', src), ('label', label)]
+    )
+
+
+    test_clf = torchtext.data.TabularDataset(
+        path=opt.test_data_path, format='csv',
+        fields=[('src', src), ('label', label)]
+    )
+
+
+    src.build_vocab(train_clf.src, test_clf.src, max_size=opt.max_word)
+    tgt.build_vocab(train_clf.src, test_clf.src, max_size=opt.max_word)
+    label.build_vocab(train_clf)
+    input_vocab = src.vocab
+
+    output_vocab = tgt.vocab
+
+    test_clf = torchtext.data.BucketIterator(
+        dataset=test_clf, batch_size=opt.batch_size,
         sort=False, sort_within_batch=True,
         sort_key=lambda x: len(x.src),
         device=opt.device, repeat=False)
 
-
-    real_data_clf = torchtext.data.TabularDataset(
-        path=opt.real_data_path, format='tsv',
-        fields=[('src', src), ('label', label)]
-    )
+    train_clf = torchtext.data.BucketIterator(
+        dataset=train_clf, batch_size=opt.batch_size,
+        sort=False, sort_within_batch=True,
+        sort_key=lambda x: len(x.src),
+        device=opt.device, repeat=False)
 
     real_data_clf = torchtext.data.BucketIterator(
         dataset=real_data_clf, batch_size=opt.batch_size,
         sort=False, sort_within_batch=True,
         sort_key=lambda x: len(x.src),
         device=opt.device, repeat=False)
-
-    train_clf = torchtext.data.TabularDataset(
-        path=opt.train_data_path, format='tsv',
-        fields=[('src', src), ('label', label)]
-    )
-    test_clf = torchtext.data.TabularDataset(
-        path=opt.test_data_path, format='tsv',
-        fields=[('src', src), ('label', label)]
-    )
-    src.build_vocab(train_clf.src, test_clf.src, max_size=opt.max_word)
-    tgt.vocab = src.vocab
-    input_vocab = src.vocab
-    output_vocab = tgt.vocab
 
     return fake_data_lm, real_data_clf, train_clf, test_clf, input_vocab, tgt
 
@@ -293,15 +305,15 @@ def build_parser():
 
     # language model
     parser.add_argument('-max_len', type=int, default=200)
-    parser.add_argument('-bidirectional', type=int, default=0)
+    parser.add_argument('-bidirectional', action='store_false', default=True)
     parser.add_argument('-dropout', type=float, default=0.3)
     parser.add_argument('-hidden_size', type=int, default=128)
     parser.add_argument('-max_word', type=int, default=30000)
     # seq2seq model
     parser.add_argument('-batch_size', type=int, default=20)
-    parser.add_argument('-check_point', type=str, default=None)
+    parser.add_argument('-check_point', type=int, default=10)
     parser.add_argument('-print_every', type=int, default=100)
-    parser.add_argument('-expt_dir', type=str, default=None)
+    parser.add_argument('-expt_dir', type=str, default='./experiment')
     parser.add_argument('-teach_force_ratio', type=float, default=0.4)
     parser.add_argument('-resume', action='store_true', default=False)
 
