@@ -5,6 +5,10 @@ def accuracy_score(y_true, y_pred):
     return metrics.accuracy_score(y_true, y_pred)
 
 def f1_score(y_true, y_pred):
+    try:
+        metrics.f1_score(y_true, y_pred)
+    except:
+        th = 1
     return metrics.f1_score(y_true, y_pred)
 
 def tensor2list(tensor):

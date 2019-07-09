@@ -69,6 +69,7 @@ class DecoderRNN(BaseRNN):
                 input_dropout_p, dropout_p,
                 n_layers, rnn_cell)
 
+
         self.bidirectional_encoder = bidirectional
         self.rnn = self.rnn_cell(hidden_size, hidden_size, n_layers, batch_first=True, dropout=dropout_p)
 
@@ -201,9 +202,7 @@ class DecoderRNN(BaseRNN):
         if inputs is None:
             if teacher_forcing_ratio > 0:
                 raise ValueError("Teacher forcing has to be disabled (set 0) when no inputs is provided.")
-            inputs = torch.LongTensor([self.sos_id] * batch_size).view(batch_size, 1)
-            if torch.cuda.is_available():
-                inputs = inputs.cuda()
+            inputs = torch.LongTensor([self.sos_id] * batch_size).view(batch_size, 1).to(encoder_hidden.device)
             max_length = self.max_length
         else:
             max_length = inputs.size(1) - 1 # minus the start of sequence symbol

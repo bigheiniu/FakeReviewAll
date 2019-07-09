@@ -28,8 +28,9 @@ class SupervisedTrainer(object):
     """
     def __init__(self, expt_dir='experiment', loss=NLLLoss(), batch_size=64,
                  random_seed=None,
-                 checkpoint_every=100, print_every=100, predic_rate=False):
+                 checkpoint_every=100, print_every=100, predic_rate=False, device=device):
         self._trainer = "Simple Trainer"
+        self.device = device
         self.random_seed = random_seed
         if random_seed is not None:
             random.seed(random_seed)
@@ -83,7 +84,7 @@ class SupervisedTrainer(object):
             dataset=data, batch_size=self.batch_size,
             sort=False, sort_within_batch=True,
             sort_key=lambda x: len(x.src),
-            device=device, repeat=False)
+            device=self.device, repeat=False)
 
         steps_per_epoch = len(batch_iterator)
         total_steps = steps_per_epoch * n_epochs

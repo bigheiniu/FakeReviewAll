@@ -12,6 +12,7 @@ class Discriminator(nn.Module):
         ])
         self.hidden2out = nn.Linear(hidden_dim, 1)
         self.sigmoid = nn.Sigmoid()
+        self.loss_fn = nn.BCELoss()
 
     def forward(self, hidden):
         # classify the simulating hidden representation and real hidden representation
@@ -29,9 +30,12 @@ class Discriminator(nn.Module):
             - target: batch_size (binary 1/0)
         """
 
-        loss_fn = nn.BCELoss()
         out = self.forward(in_hidden)
-        return loss_fn(out, target), {'y_pre': torch.where(out > 0.5, torch.ones_like(out), torch.zeros_like(out)),
+        try:
+            th = self.loss_fn(out, target.float())
+        except:
+            th1 = th
+        return self.loss_fn(out, target.float()), {'y_pre': torch.where(out > 0.5, torch.ones_like(out), torch.zeros_like(out)),
                                       'y_true': target}
 
 class RNNclaissfier(nn.Module):
@@ -42,11 +46,21 @@ class RNNclaissfier(nn.Module):
 
     def forward(self, onehot_seq, onehot_label,onehot_length=None, con_seq=None,
                 con_label=None, con_length=None):
-        _, hidden = self.encoder(onehot_seq, is_onehot=True, input_length=onehot_length.tolist())
-        onehot_state = hidden[0].view(hidden.shape[0], -1)
+        _, hidden = self.encoder(onehot_seq, is_onehot=True, input_lengths=onehot_length.tolist())
+        if len(hidden) == 2:
+            hidden = hidden[0].permute(1, 0, 2)
+        else:
+            hidden = hidden.permute(1, 0, 2)
+        hidden = hidden.contiguous()
+        onehot_state = hidden.view(hidden.shape[0], -1)
         if con_seq is not None:
-            _, hidden = self.encoder(con_seq, is_onehot=False, input_length=con_length)
-            con_state = hidden[0].view(hidden.shape[0], -1)
+            _, hidden = self.encoder(con_seq, is_onehot=False, input_lengths=con_length)
+            if len(hidden) == 2:
+                hidden = hidden[0].permute(1, 0, 2)
+            else:
+                hidden = hidden.permute(1, 0, 2)
+            hidden = hidden.contiguous()
+            con_state = hidden.view(hidden.shape[0], -1)
             all_state = torch.cat((onehot_state, con_state), dim=0)
             all_label = torch.cat((onehot_label, con_label), dim=0)
         else:
