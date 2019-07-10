@@ -3,9 +3,9 @@ import unittest
 
 import torchtext
 
-from seq2seq.evaluator import Predictor
-from seq2seq.dataset import SourceField, TargetField
-from seq2seq.models import Seq2seq, EncoderRNN, DecoderRNN
+from SeqModel.evaluator import Predictor
+from SeqModel.dataset import SourceField, TargetField
+from SeqModel.models import Seq2seq, EncoderRNN, DecoderRNN
 
 class TestPredictor(unittest.TestCase):
 

@@ -16,7 +16,7 @@ else:
     import torch as device
 
 
-class DecoderRNN(BaseRNN):
+class ContextDecoderRNN(BaseRNN):
     r"""
     Provides functionality for decoding in a seq2seq framework, with an option for attention.
 
@@ -70,7 +70,7 @@ class DecoderRNN(BaseRNN):
             n_layers=1, rnn_cell='gru', bidirectional=False,
             input_dropout_p=0, dropout_p=0, use_attention=False, use_gC2S=False, embedding=None, update_embedding=True):
 
-        super(DecoderRNN, self).__init__(vocab_size, max_len, hidden_size,
+        super(ContextDecoderRNN, self).__init__(vocab_size, max_len, hidden_size,
                 input_dropout_p, dropout_p,
                 n_layers, rnn_cell)
 
@@ -95,6 +95,7 @@ class DecoderRNN(BaseRNN):
         self.gate = nn.Linear(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
+
     def forward_step(self, input_var, hidden, encoder_hidden, encoder_outputs, function):
         batch_size = input_var.size(0)
         output_size = input_var.size(1)
@@ -103,38 +104,42 @@ class DecoderRNN(BaseRNN):
 
         #batch, seq_len, num_directions * hidden_size)
 
+
         output, hidden = self.rnn(embedded, hidden)
 
 
-        batch_size = output.shape[0]
-        hidden_size = output.shape[-1]
-        if len(encoder_hidden.shape) == 2:
-            encoder_hidden = encoder_hidden.unsqueeze(1)
-        if encoder_hidden.shape[0] != output.shape[0]:
-            encoder_hidden_ = encoder_hidden.transpose(1, 0)
-        else: encoder_hidden_ = encoder_hidden
-        encoder_hidden_ = encoder_hidden_.contiguous().view(batch_size, 1, hidden_size)
-
-        if self.use_gC2S:
-            output = self._gate_hidden(output, encoder_hidden_)
+        # batch_size = output.shape[0]
 
         attn = None
+        if self.use_gC2S:
+            hidden_size = output.shape[-1]
+            if len(encoder_hidden.shape) == 2:
+                encoder_hidden = encoder_hidden.unsqueeze(1)
+            if encoder_hidden.shape[0] != output.shape[0]:
+                encoder_hidden_ = encoder_hidden.transpose(1, 0)
+            else:
+                encoder_hidden_ = encoder_hidden
+            encoder_hidden_ = encoder_hidden_.contiguous().view(batch_size, 1, hidden_size)
+            output = self._gate_hidden(output, encoder_hidden_)
+            predicted_softmax = function(torch.matmul(output, self.embedding.weight.transpose(1, 0)), dim=-1)
+            return predicted_softmax, hidden, attn
+
+
         if self.use_attention:
             output, attn = self.attention(output, encoder_outputs)
 
-        predicted_softmax = function(torch.matmul(output, self.embedding.weight.transpose(1,0)), dim=-1)
-        # predicted_softmax = function(self.out(output.contiguous().view(-1, self.hidden_size)), dim=1).view(batch_size, output_size, -1)
+        predicted_softmax = function(self.out(output.contiguous().view(-1, self.hidden_size)), dim=1).view(batch_size, output_size, -1)
         return predicted_softmax, hidden, attn
 
     def forward(self, inputs=None, encoder_hidden=None, encoder_outputs=None,
                     function=F.log_softmax, teacher_forcing_ratio=0):
         ret_dict = dict()
         if self.use_attention:
-            ret_dict[DecoderRNN.KEY_ATTN_SCORE] = list()
+            ret_dict[ContextDecoderRNN.KEY_ATTN_SCORE] = list()
 
         inputs, batch_size, max_length = self._validate_args(inputs, encoder_hidden, encoder_outputs,
                                                              function, teacher_forcing_ratio)
-        decoder_hidden = self._init_state(encoder_hidden)
+        decoder_hidden = self._init_state(encoder_hidden.unsqueeze(0))
 
         use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 
@@ -145,7 +150,7 @@ class DecoderRNN(BaseRNN):
         def decode(step, step_output, step_attn):
             decoder_outputs.append(step_output)
             if self.use_attention:
-                ret_dict[DecoderRNN.KEY_ATTN_SCORE].append(step_attn)
+                ret_dict[ContextDecoderRNN.KEY_ATTN_SCORE].append(step_attn)
             symbols = decoder_outputs[-1].topk(1)[1]
             sequence_symbols.append(symbols)
 
@@ -179,8 +184,8 @@ class DecoderRNN(BaseRNN):
                 symbols = decode(di, step_output, step_attn)
                 decoder_input = symbols
 
-        ret_dict[DecoderRNN.KEY_SEQUENCE] = sequence_symbols
-        ret_dict[DecoderRNN.KEY_LENGTH] = lengths.tolist()
+        ret_dict[ContextDecoderRNN.KEY_SEQUENCE] = sequence_symbols
+        ret_dict[ContextDecoderRNN.KEY_LENGTH] = lengths.tolist()
 
         return decoder_outputs, decoder_hidden, ret_dict
 

@@ -4,7 +4,8 @@
 checkpoint
 checkpoint/*
 data/
-
+*.csv
+*.zip
 # Operating system related file
 .DS_Store
 
@@ -85,6 +86,7 @@ db.sqlite3
 # Flask stuff:
 instance/
 .webassets-cache
+
 
 # Scrapy stuff:
 .scrapy

@@ -3,8 +3,9 @@ from __future__ import print_function, division
 import torch
 import torchtext
 
-import seq2seq
-from seq2seq.loss import NLLLoss
+import SeqModel
+from SeqModel.loss import NLLLoss
+from SeqModel.loss import cal_mt_score
 
 class Evaluator(object):
     """ Class to evaluate models with given datasets.
@@ -38,22 +39,23 @@ class Evaluator(object):
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         batch_iterator = torchtext.data.BucketIterator(
             dataset=data, batch_size=self.batch_size,
-            sort=True, sort_key= 2,
-            device=device, train=False)
-        tgt_vocab = data.fields[seq2seq.tgt_field_name].vocab
-        pad = tgt_vocab.stoi[data.fields[seq2seq.tgt_field_name].pad_token]
-
+            sort=False, sort_within_batch=True,
+            sort_key=lambda x: len(x.src),
+            device=device, repeat=False)
+        tgt_vocab = data.fields[SeqModel.tgt_field_name].vocab
+        pad = tgt_vocab.stoi[data.fields[SeqModel.tgt_field_name].pad_token]
+        pred_list = []
+        gold_list = []
         with torch.no_grad():
             for batch in batch_iterator:
-                input_variables, input_lengths  = getattr(batch, seq2seq.src_field_name)
-                target_variables = getattr(batch, seq2seq.tgt_field_name)
-                input_lengths.to(device)
-                input_variables.to(device)
-                target_variables.to(device)
-                decoder_outputs, decoder_hidden, other = model(input_variables, input_lengths.tolist(), target_variables)
-
+                input_variables, input_lengths = getattr(batch, SeqModel.src_field_name)
+                target_variables = getattr(batch, SeqModel.tgt_field_name)
+                # input_lengths.to(device)
+                decoder_outputs, decoder_hidden, other = model(input_variables, input_lengths, target_variables)
                 # Evaluation
                 seqlist = other['sequence']
+                pred_list.append(torch.stack(seqlist, dim=1).cpu().numpy().tolist())
+                gold_list.append(target_variables.cpu().numpy().tolist())
                 for step, step_output in enumerate(decoder_outputs):
                     target = target_variables[:, step + 1]
                     loss.eval_batch(step_output.view(target_variables.size(0), -1), target)
@@ -62,10 +64,10 @@ class Evaluator(object):
                     correct = seqlist[step].view(-1).eq(target).masked_select(non_padding).sum().item()
                     match += correct
                     total += non_padding.sum().item()
-
+        metric_result = cal_mt_score(pred_list, gold_list)
         if total == 0:
             accuracy = float('nan')
         else:
             accuracy = match / total
 
-        return loss.get_loss(), accuracy
+        return loss.get_loss(), accuracy, metric_result

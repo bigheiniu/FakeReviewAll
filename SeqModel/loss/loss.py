@@ -258,3 +258,43 @@ class PerplexityVAE(NLLLoss):
             raise ValueError("No loss to back propagate.")
         self.loss = self.acc_loss + self.KL_loss
         self.loss.backward()
+
+
+from nltk.translate.bleu_score import corpus_bleu
+# from collections import OrderedDict
+from rogue import rouge
+def cal_mt_score(hypoes, refs):
+    hypo_list = []
+    for i in hypoes:
+        for j in i:
+            t1 = []
+            for k in j:
+                t1.append(k[0])
+            hypo_list.append([t1])
+
+
+    ref_list = []
+    for i in refs:
+        for j in i:
+            ref_list.append(j)
+
+    metric_result = {}
+
+    metric_result['bleu_1'] = corpus_bleu(hypo_list, ref_list, weights=[1,0,0,0])
+    metric_result['bleu_2'] = corpus_bleu(hypo_list, ref_list, weights=[0,1,0,0])
+    metric_result['bleu_3'] = corpus_bleu(hypo_list, ref_list, weights=[0,0,1,0])
+    metric_result['bleu_4'] = corpus_bleu(hypo_list, ref_list, weights=[0,0,0,1])
+
+
+    # metric_result = {}
+    for hypo, ref in zip(hypo_list, ref_list):
+        result = rouge(hypo, [ref])
+        for key, value in result.items():
+            if key not in metric_result:
+                metric_result[key] = [value]
+            else:
+                metric_result[key].append(value)
+    for key, value in metric_result.items():
+        metric_result[key] = np.mean(metric_result[key])
+    return metric_result
+
