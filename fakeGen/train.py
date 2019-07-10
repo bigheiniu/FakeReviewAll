@@ -257,30 +257,31 @@ def prepare_data(opt):
 
     output_vocab = tgt.vocab
 
-    test_clf = torchtext.data.BucketIterator(
-        dataset=test_clf, batch_size=opt.batch_size,
-        sort=False, sort_within_batch=True,
-        sort_key=lambda x: len(x.src),
-        device=opt.device, repeat=False)
-
-    train_clf = torchtext.data.BucketIterator(
-        dataset=train_clf, batch_size=opt.batch_size,
-        sort=False, sort_within_batch=True,
-        sort_key=lambda x: len(x.src),
-        device=opt.device, repeat=False)
-
-    real_data_clf = torchtext.data.BucketIterator(
-        dataset=real_data_clf, batch_size=opt.batch_size,
-        sort=False, sort_within_batch=True,
-        sort_key=lambda x: len(x.src),
-        device=opt.device, repeat=False)
-
-    fake_data_dis = torchtext.data.BucketIterator(
-        dataset=fake_data_lm, batch_size=opt.batch_size,
-        sort=False, sort_within_batch=True,
-        sort_key=lambda x: len(x.src),
-        device=opt.device, repeat=False)
-
+    # # the data is so large?
+    # test_clf = torchtext.data.BucketIterator(
+    #     dataset=test_clf, batch_size=opt.batch_size,
+    #     sort=False, sort_within_batch=True,
+    #     sort_key=lambda x: len(x.src),
+    #     device=opt.device, repeat=False)
+    #
+    # train_clf = torchtext.data.BucketIterator(
+    #     dataset=train_clf, batch_size=opt.batch_size,
+    #     sort=False, sort_within_batch=True,
+    #     sort_key=lambda x: len(x.src),
+    #     device=opt.device, repeat=False)
+    #
+    # real_data_clf = torchtext.data.BucketIterator(
+    #     dataset=real_data_clf, batch_size=opt.batch_size,
+    #     sort=False, sort_within_batch=True,
+    #     sort_key=lambda x: len(x.src),
+    #     device=opt.device, repeat=False)
+    #
+    # fake_data_dis = torchtext.data.BucketIterator(
+    #     dataset=fake_data_lm, batch_size=opt.batch_size,
+    #     sort=False, sort_within_batch=True,
+    #     sort_key=lambda x: len(x.src),
+    #     device=opt.device, repeat=False)
+    fake_data_dis = 1
     return fake_data_dis, fake_data_lm, real_data_clf, train_clf, test_clf, input_vocab, tgt
 
 
@@ -340,7 +341,7 @@ def build_parser():
     parser.add_argument('-n_layers', type=int, default=2)
     # seq2seq model
     parser.add_argument('-batch_size', type=int, default=20)
-    parser.add_argument('-check_point', type=int, default=10)
+    parser.add_argument('-check_point', type=int, default=100)
     parser.add_argument('-print_every', type=int, default=100)
     parser.add_argument('-expt_dir', type=str, default='./experiment')
     parser.add_argument('-teach_force_ratio', type=float, default=0.4)
@@ -387,6 +388,7 @@ def main(parser):
     loss_seq = prepare_loss(tgt, opt)
     seq2seq = train_LM(opt, loss_seq, seq2seq, fake_data_lm)
 
+    exit()
     # pre-train the classify model
     pre_train_deceptive(rnn_claissfier, classifier_opt, train_clf, opt)
 

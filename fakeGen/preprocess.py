@@ -8,7 +8,6 @@ def generate_data(review_path, label_path):
 
     data = pd.merge(review, label, how='inner', right_on=[0, 1, 4], left_on=[0, 1, 2])
     data = data.loc[:,['3_x', '3_y']]
-    data = data.head(1000)
 
     data = data.rename(index=str, columns={'3_x': 'src', '3_y':'label'})
 

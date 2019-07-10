@@ -5,7 +5,7 @@ import shutil
 
 import torch
 import dill
-
+import glob
 class Checkpoint(object):
     """
     The Checkpoint class manages the saving and loading of a model during training. It allows training to be suspended
@@ -60,10 +60,20 @@ class Checkpoint(object):
         Returns:
              str: path to the saved checkpoint subdirectory
         """
+
+        # only keep the latest three models
         date_time = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime())
 
         self._path = os.path.join(experiment_dir, self.CHECKPOINT_DIR_NAME, date_time)
         path = self._path
+
+        os.chdir(experiment_dir)
+        sorted_dir = sorted(glob.iglob(experiment_dir+"/*"), key=os.path.getctime)
+        # only keep three latest
+        if len(sorted_dir) > 3:
+            delete_dir = sorted_dir[3:]
+            for dir in delete_dir:
+                shutil.rmtree(dir)
 
         if os.path.exists(path):
             shutil.rmtree(path)

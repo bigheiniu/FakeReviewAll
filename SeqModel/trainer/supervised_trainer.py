@@ -14,6 +14,7 @@ from SeqModel.loss import NLLLoss
 from SeqModel.optim import Optimizer
 from SeqModel.util.checkpoint import Checkpoint
 from SeqModel.loss import cal_mt_score
+import numpy as np
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 class SupervisedTrainer(object):
@@ -91,6 +92,7 @@ class SupervisedTrainer(object):
 
         step = start_step
         step_elapsed = 0
+        loss_baseline = 9999999.0
         for epoch in range(start_epoch, n_epochs + 1):
             log.debug("Epoch: %d, Step: %d" % (epoch, step))
 
@@ -123,13 +125,21 @@ class SupervisedTrainer(object):
                         step / total_steps * 100,
                         self.loss.name,
                         print_loss_avg)
+                    print(log_msg)
                     log.info(log_msg)
+                    # Checkpoint
+                if step % self.checkpoint_every == 0 or step == total_steps:
+                    print('result {}'.format(print_loss_total / self.checkpoint_every - loss_baseline))
+                    if print_loss_total / self.checkpoint_every < loss_baseline:
+                        loss_baseline = print_loss_total / self.checkpoint_every
+                        Checkpoint(model=model,
+                                optimizer=self.optimizer,
+                                epoch=epoch, step=step,
+                                input_vocab=data.fields[SeqModel.src_field_name].vocab,
+                                output_vocab=data.fields[SeqModel.tgt_field_name].vocab).save(self.expt_dir)
 
 
-            if step_elapsed == 0:
-                print("fuck")
-                continue
-
+            if step_elapsed == 0: continue
             metric_result = cal_mt_score(pred_list, gold_list)
             epoch_loss_avg = epoch_loss_total / min(steps_per_epoch, step - start_step)
             epoch_loss_total = 0
@@ -147,6 +157,7 @@ class SupervisedTrainer(object):
             else:
                 self.optimizer.update(epoch_loss_avg, epoch)
 
+            print(log_msg)
             log.info(log_msg)
 
     def train(self, model, data, num_epochs=5,
