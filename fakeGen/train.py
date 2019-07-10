@@ -305,19 +305,25 @@ def prepare_model(opt, vocab_size, tgt):
     seq2seq = Seq2seq(encoder, decoder).to(opt.device)
 
 
-    gen = Generator(dis_hidden_size, opt.z_size).to(opt.device)
-    encoder_new = EncoderRNN(vocab_size, opt.max_len, opt.hidden_size,
-                         bidirectional=opt.bidirectional, n_layers=opt.n_layers,variable_lengths=True).to(opt.device)
+    # gen = Generator(dis_hidden_size, opt.z_size).to(opt.device)
+    # encoder_new = EncoderRNN(vocab_size, opt.max_len, opt.hidden_size,
+    #                      bidirectional=opt.bidirectional, n_layers=opt.n_layers,variable_lengths=True).to(opt.device)
+    #
+    #
+    # dis_clf = Discriminator(dis_hidden_size, opt.clf_layers).to(opt.device)
+    # rnn_clf = RNNclaissfier(encoder_new, dis_clf).to(opt.device)
+    #
+    # dis_gen = Discriminator(dis_hidden_size, opt.clf_layers).to(opt.device)
+    # opt_gen = optim.Adam(gen.parameters(), lr=opt.gen_lr)
+    # opt_dis_clf = optim.Adam(rnn_clf.parameters(), lr=opt.dis_dec_lr)
+    # opt_dis_gen = optim.Adam(dis_gen.parameters(), lr=opt.dis_gen_lr)
 
-
-    dis_clf = Discriminator(dis_hidden_size, opt.clf_layers).to(opt.device)
-    rnn_clf = RNNclaissfier(encoder_new, dis_clf).to(opt.device)
-
-    dis_gen = Discriminator(dis_hidden_size, opt.clf_layers).to(opt.device)
-    opt_gen = optim.Adam(gen.parameters(), lr=opt.gen_lr)
-    opt_dis_clf = optim.Adam(rnn_clf.parameters(), lr=opt.dis_dec_lr)
-    opt_dis_gen = optim.Adam(dis_gen.parameters(), lr=opt.dis_gen_lr)
-
+    gen = 1
+    opt_gen = 1
+    rnn_clf = 1
+    opt_dis_clf =1
+    dis_gen = 1
+    opt_dis_gen = 1
     return seq2seq, gen, opt_gen, rnn_clf, opt_dis_clf, dis_gen, opt_dis_gen
 
 def build_parser():
@@ -333,7 +339,7 @@ def build_parser():
                         default='/home/yichuan/course/seq2/data/YelpNYC/test_data.csv')
 
     # language model
-    parser.add_argument('-max_len', type=int, default=200)
+    parser.add_argument('-max_len', type=int, default=100)
     parser.add_argument('-bidirectional', action='store_false', default=True)
     parser.add_argument('-dropout', type=float, default=0.3)
     parser.add_argument('-hidden_size', type=int, default=128)

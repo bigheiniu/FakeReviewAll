@@ -9,11 +9,14 @@ def generate_data(review_path, label_path):
     data = pd.merge(review, label, how='inner', right_on=[0, 1, 4], left_on=[0, 1, 2])
     data = data.loc[:,['3_x', '3_y']]
 
+
     data = data.rename(index=str, columns={'3_x': 'src', '3_y':'label'})
 
     # shuffle data
     data = data.sample(frac=1).reset_index(drop=True)
+    data = data.iloc[:30000, :]
     # split the test/train
+
     ratio = 0.7
     train_end = int(ratio * len(data))
     train_data = data.iloc[:train_end, :]
