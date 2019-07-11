@@ -71,7 +71,7 @@ class Checkpoint(object):
         sorted_dir = sorted(glob.iglob(experiment_dir+"/*"), key=os.path.getctime)
         # only keep three latest
         if len(sorted_dir) > 3:
-            delete_dir = sorted_dir[3:]
+            delete_dir = sorted_dir[:3]
             for dir in delete_dir:
                 shutil.rmtree(dir)
 
