@@ -194,6 +194,7 @@ def clf_test(test_clf_data, rnn_classifier):
     f1 = f1_score(y_true, y_pre)
     acc = accuracy_score(y_true, y_pre)
     print("[INFO] ---TEST--- acc is {}, f1 is {}".format(acc, f1))
+    #
         # print the loss and F1 score
 
 
