@@ -228,34 +228,38 @@ def prepare_data(opt):
     tgt = TargetField()
     src = SourceField()
     label = torchtext.data.Field(sequential=False)
-    fake_data_lm = torchtext.data.TabularDataset(
+    # fake_data_lm = torchtext.data.TabularDataset(
+    #     path=opt.fake_data_path, format='csv',
+    #     fields=[('src', src), ('label', label), ('tgt', tgt)]
+    # )
+
+    # real_data_clf = torchtext.data.TabularDataset(
+    #     path=opt.real_data_path, format='csv',
+    #     fields=[('src', src), ('label', label)]
+    # )
+    #
+    # train_clf = torchtext.data.TabularDataset(
+    #     path=opt.train_data_path, format='csv',
+    #     fields=[('src', src), ('label', label)]
+    # )
+    #
+    #
+    # test_clf = torchtext.data.TabularDataset(
+    #     path=opt.test_data_path, format='csv',
+    #     fields=[('src', src), ('label', label)]
+    # )
+    all_data = torchtext.data.TabularDataset(
         path=opt.fake_data_path, format='csv',
-        fields=[('src', src), ('label', label), ('tgt', tgt)]
+        fields=[('src', src), ('tgt', tgt)]
     )
 
-    real_data_clf = torchtext.data.TabularDataset(
-        path=opt.real_data_path, format='csv',
-        fields=[('src', src), ('label', label)]
-    )
-
-    train_clf = torchtext.data.TabularDataset(
-        path=opt.train_data_path, format='csv',
-        fields=[('src', src), ('label', label)]
-    )
-
-
-    test_clf = torchtext.data.TabularDataset(
-        path=opt.test_data_path, format='csv',
-        fields=[('src', src), ('label', label)]
-    )
-
-
-    src.build_vocab(train_clf.src, test_clf.src, max_size=opt.max_word)
-    tgt.build_vocab(train_clf.src, test_clf.src, max_size=opt.max_word)
-    label.build_vocab(train_clf)
+    src.build_vocab(all_data.src, max_size=opt.max_word)
+    tgt.build_vocab(all_data.src, max_size=opt.max_word)
+    # label.build_vocab(train_clf)
     input_vocab = src.vocab
 
     output_vocab = tgt.vocab
+    return all_data, tgt
 
     # # the data is so large?
     # test_clf = torchtext.data.BucketIterator(
@@ -282,7 +286,7 @@ def prepare_data(opt):
     #     sort_key=lambda x: len(x.src),
     #     device=opt.device, repeat=False)
     fake_data_dis = 1
-    return fake_data_dis, fake_data_lm, real_data_clf, train_clf, test_clf, input_vocab, tgt
+    # return fake_data_dis, fake_data_lm, real_data_clf, train_clf, test_clf, input_vocab, tgt
 
 
 def prepare_loss(tgt, opt):
@@ -330,7 +334,7 @@ def build_parser():
     parser = argparse.ArgumentParser()
     # data
     parser.add_argument('-fake_data_path', type=str,
-                        default='/home/yichuan/course/seq2/data/YelpNYC/fake_data.csv')
+                        default='/home/yichuan/course/seq2/data/YelpNYC/text.csv')
     parser.add_argument('-real_data_path', type=str,
                         default='/home/yichuan/course/seq2/data/YelpNYC/real_data.csv')
     parser.add_argument('-train_data_path', type=str,
@@ -386,30 +390,31 @@ def build_parser():
 def main(parser):
     opt = parser.parse_args()
     opt.device = torch.device('cuda') if opt.cuda else torch.device('cpu')
-    fake_data_dis, fake_data_lm, real_data_clf, train_clf, test_clf, vocab, tgt = prepare_data(opt)
+    # fake_data_dis, fake_data_lm, real_data_clf, train_clf, test_clf, vocab, tgt = prepare_data(opt)
+    fake_data_dis, tgt = prepare_data(opt)
     seq2seq, gen, opt_gen, rnn_claissfier, classifier_opt, dis_gen, opt_dis_gen = \
-        prepare_model(opt, len(vocab), tgt=tgt)
+        prepare_model(opt, len(tgt.vocab), tgt=tgt)
     
     # pre-train the LM model
     loss_seq = prepare_loss(tgt, opt)
-    seq2seq = train_LM(opt, loss_seq, seq2seq, fake_data_lm)
+    seq2seq = train_LM(opt, loss_seq, seq2seq, fake_data_dis)
 
     exit()
-    # pre-train the classify model
-    pre_train_deceptive(rnn_claissfier, classifier_opt, train_clf, opt)
-
-    # train the generator
-    for epoch in range(opt.gan_epoch):
-        train_gen(gen, opt_gen, dis_gen, opt)
-
-    # train the discriminator
-        train_discriminator(dis_gen, opt_dis_gen, seq2seq, gen, fake_data_dis, opt)
-
-    # train the classification on simulate data and real review
-    for epoch in range(opt.clf_epoch):
-        # test the classifier
-        clf_test(test_clf, rnn_claissfier)
-        train_classifier(opt, real_data_clf, gen, seq2seq, rnn_claissfier, classifier_opt)
+    # # pre-train the classify model
+    # pre_train_deceptive(rnn_claissfier, classifier_opt, train_clf, opt)
+    #
+    # # train the generator
+    # for epoch in range(opt.gan_epoch):
+    #     train_gen(gen, opt_gen, dis_gen, opt)
+    #
+    # # train the discriminator
+    #     train_discriminator(dis_gen, opt_dis_gen, seq2seq, gen, fake_data_dis, opt)
+    #
+    # # train the classification on simulate data and real review
+    # for epoch in range(opt.clf_epoch):
+    #     # test the classifier
+    #     clf_test(test_clf, rnn_claissfier)
+    #     train_classifier(opt, real_data_clf, gen, seq2seq, rnn_claissfier, classifier_opt)
 
 
 

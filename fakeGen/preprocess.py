@@ -14,9 +14,12 @@ def generate_data(review_path, label_path):
 
     # shuffle data
     data = data.sample(frac=1).reset_index(drop=True)
-    data = data.iloc[:30000, :]
+
     # split the test/train
 
+    data.loc[:, 'tgt'] = data.loc[:, 'src']
+    data = data.loc[:,['src','tgt']]
+    data.to_csv(os.path.join(path, 'text.csv'), index=None, header=None)
     ratio = 0.7
     train_end = int(ratio * len(data))
     train_data = data.iloc[:train_end, :]
