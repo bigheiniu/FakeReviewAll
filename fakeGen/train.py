@@ -249,7 +249,7 @@ def prepare_data(opt):
     #     fields=[('src', src), ('label', label)]
     # )
     all_data = torchtext.data.TabularDataset(
-        path=opt.fake_data_path, format='csv',
+        path=opt.text_path, format='csv',
         fields=[('src', src), ('tgt', tgt)]
     )
 

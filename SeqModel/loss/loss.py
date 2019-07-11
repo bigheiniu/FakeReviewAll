@@ -262,7 +262,7 @@ class PerplexityVAE(NLLLoss):
 
 from nltk.translate.bleu_score import corpus_bleu
 # from collections import OrderedDict
-from rogue import rouge
+from fakeGen.rogue import rouge
 def cal_mt_score(hypoes, refs):
     hypo_list = []
     for i in hypoes:
